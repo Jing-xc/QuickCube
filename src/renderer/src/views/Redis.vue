@@ -568,8 +568,6 @@ const deleteKey = async () => {
     }
 }
 
-
-
 // 更新键内容
 const updateKeyContent = async (newValue) => {
     try {
@@ -1010,28 +1008,32 @@ onUnmounted(() => {
 
     .redis-ui {
         flex: 1;
-        margin: 15px;
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
+        margin: 12px;
+        border: 1px solid #2a2a2a;
+        border-radius: 12px;
         overflow: hidden;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        background-image: url('../assets/wavy-lines.svg');
+        background-size: cover;
+        background-position: center;
 
         .ui-container {
             display: flex;
             height: 100%;
 
             .sidebar {
-                width: 300px;
-                background: rgba(0, 0, 0, 0.2);
+                width: 280px;
+                //background: #333333;
                 border-right: 1px solid rgba(255, 255, 255, 0.1);
                 display: flex;
                 flex-direction: column;
 
                 .database-list {
-                    padding: 15px;
+                    padding: 12px;
                     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 
                     .section-title {
-                        color: #adb5bd;
+                        color: #e4e4e4;
                         font-size: 12px;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
@@ -1039,19 +1041,21 @@ onUnmounted(() => {
                     }
 
                     .db-item {
-                        padding: 8px 12px;
+                        padding: 6px 10px;
                         color: #e4e4e4;
                         cursor: pointer;
-                        border-radius: 4px;
-                        transition: all 0.2s ease;
+                        border-radius: 10px;
+                        transition: all 0.3s ease;
+                        margin-bottom: 4px;
 
                         &:hover {
                             background: rgba(255, 255, 255, 0.05);
+                            transform: translateX(4px);
                         }
 
                         &.active {
-                            background: rgba(255, 75, 43, 0.2);
-                            color: #ff4b2b;
+                            background: rgba(76, 175, 80, 0.2);
+                            color: #4CAF50;
                         }
                     }
                 }
@@ -1063,8 +1067,8 @@ onUnmounted(() => {
                     overflow: hidden;
 
                     .section-title {
-                        padding: 15px;
-                        color: #adb5bd;
+                        padding: 12px;
+                        color: #e4e4e4;
                         font-size: 12px;
                         text-transform: uppercase;
                         letter-spacing: 0.5px;
@@ -1075,15 +1079,22 @@ onUnmounted(() => {
 
                             input {
                                 width: 100%;
-                                background: rgba(0, 0, 0, 0.2);
-                                border: 1px solid rgba(255, 255, 255, 0.1);
-                                border-radius: 4px;
+                                background: #2a2a2a;
+                                border: 2px solid rgba(255, 255, 255, 0.1);
+                                border-radius: 10px;
                                 padding: 6px 10px;
                                 color: #e4e4e4;
                                 font-size: 12px;
+                                transition: all 0.3s ease;
+
+                                &:focus {
+                                    border-color: #4CAF50;
+                                    outline: none;
+                                    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+                                }
 
                                 &::placeholder {
-                                    color: #6c757d;
+                                    color: rgba(255, 255, 255, 0.3);
                                 }
                             }
                         }
@@ -1092,55 +1103,77 @@ onUnmounted(() => {
                     .key-items {
                         flex: 1;
                         overflow-y: auto;
-                        padding: 15px;
+                        padding: 12px;
+
+                        &::-webkit-scrollbar {
+                            width: 6px;
+                        }
+
+                        &::-webkit-scrollbar-track {
+                            background: rgba(255, 255, 255, 0.05);
+                            border-radius: 10px;
+                        }
+
+                        &::-webkit-scrollbar-thumb {
+                            background: rgba(255, 255, 255, 0.1);
+                            border-radius: 10px;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.15);
+                            }
+                        }
 
                         .key-item {
                             display: flex;
                             align-items: center;
-                            padding: 8px 12px;
+                            padding: 8px 10px;
                             cursor: pointer;
-                            border-radius: 4px;
-                            margin-bottom: 4px;
-                            transition: all 0.2s ease;
+                            border-radius: 10px;
+                            margin-bottom: 5px;
+                            transition: all 0.3s ease;
+                            border: 2px solid transparent;
 
                             &:hover {
                                 background: rgba(255, 255, 255, 0.05);
+                                transform: translateX(4px);
                             }
 
                             &.active {
-                                background: rgba(255, 75, 43, 0.2);
-                                color: #ff4b2b;
+                                background: rgba(76, 175, 80, 0.1);
+                                border-color: rgba(76, 175, 80, 0.2);
+                                color: #4CAF50;
                             }
 
                             .key-type {
-                                padding: 2px 6px;
-                                border-radius: 3px;
-                                font-size: 12px;
+                                padding: 3px 6px;
+                                border-radius: 8px;
+                                font-size: 11px;
                                 margin-right: 8px;
+                                font-weight: 500;
 
                                 &.string {
-                                    background: rgba(40, 167, 69, 0.2);
-                                    color: #28a745;
+                                    background: rgba(76, 175, 80, 0.1);
+                                    color: #4CAF50;
                                 }
 
                                 &.list {
-                                    background: rgba(0, 123, 255, 0.2);
-                                    color: #007bff;
+                                    background: rgba(33, 150, 243, 0.1);
+                                    color: #2196F3;
                                 }
 
                                 &.set {
-                                    background: rgba(255, 193, 7, 0.2);
-                                    color: #ffc107;
+                                    background: rgba(255, 193, 7, 0.1);
+                                    color: #FFC107;
                                 }
 
                                 &.hash {
-                                    background: rgba(111, 66, 193, 0.2);
-                                    color: #6f42c1;
+                                    background: rgba(156, 39, 176, 0.1);
+                                    color: #9C27B0;
                                 }
 
                                 &.zset {
-                                    background: rgba(23, 162, 184, 0.2);
-                                    color: #17a2b8;
+                                    background: rgba(0, 188, 212, 0.1);
+                                    color: #00BCD4;
                                 }
                             }
 
@@ -1149,14 +1182,16 @@ onUnmounted(() => {
                                 overflow: hidden;
                                 text-overflow: ellipsis;
                                 white-space: nowrap;
+                                color: #e4e4e4;
                             }
                         }
                     }
 
                     .no-keys {
-                        padding: 20px;
+                        padding: 30px 20px;
                         text-align: center;
-                        color: #6c757d;
+                        color: rgba(255, 255, 255, 0.3);
+                        font-size: 14px;
                     }
                 }
             }
@@ -1167,13 +1202,14 @@ onUnmounted(() => {
                 flex-direction: column;
                 overflow: hidden;
 
+
                 .key-info {
                     height: 100%;
                     display: flex;
                     flex-direction: column;
 
                     .info-header {
-                        padding: 15px;
+                        padding: 16px;
                         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
                         display: flex;
                         justify-content: space-between;
@@ -1187,14 +1223,16 @@ onUnmounted(() => {
                             h3 {
                                 margin: 0;
                                 color: #e4e4e4;
+                                font-size: 15px;
                             }
 
                             .type-badge {
-                                padding: 2px 8px;
-                                border-radius: 4px;
-                                font-size: 12px;
-                                background: rgba(255, 75, 43, 0.2);
-                                color: #ff4b2b;
+                                padding: 3px 10px;
+                                border-radius: 16px;
+                                font-size: 11px;
+                                background: rgba(76, 175, 80, 0.1);
+                                color: #4CAF50;
+                                font-weight: 500;
                             }
                         }
 
@@ -1203,28 +1241,31 @@ onUnmounted(() => {
                             gap: 10px;
 
                             button {
-                                padding: 6px 12px;
-                                border-radius: 4px;
+                                padding: 6px 14px;
+                                border-radius: 16px;
                                 border: none;
                                 cursor: pointer;
                                 font-size: 12px;
-                                transition: all 0.2s ease;
+                                font-weight: 500;
+                                transition: all 0.3s ease;
 
                                 &:not(.danger) {
                                     background: rgba(255, 255, 255, 0.1);
                                     color: #e4e4e4;
 
                                     &:hover {
-                                        background: rgba(255, 255, 255, 0.2);
+                                        background: rgba(255, 255, 255, 0.15);
+                                        transform: translateY(-1px);
                                     }
                                 }
 
                                 &.danger {
-                                    background: rgba(220, 53, 69, 0.2);
-                                    color: #dc3545;
+                                    background: rgba(255, 77, 79, 0.1);
+                                    color: #ff4d4f;
 
                                     &:hover {
-                                        background: rgba(220, 53, 69, 0.3);
+                                        background: rgba(255, 77, 79, 0.2);
+                                        transform: translateY(-1px);
                                     }
                                 }
                             }
@@ -1233,8 +1274,26 @@ onUnmounted(() => {
 
                     .key-content {
                         flex: 1;
-                        padding: 15px;
+                        padding: 16px;
                         overflow: auto;
+
+                        &::-webkit-scrollbar {
+                            width: 6px;
+                        }
+
+                        &::-webkit-scrollbar-track {
+                            background: rgba(255, 255, 255, 0.05);
+                            border-radius: 10px;
+                        }
+
+                        &::-webkit-scrollbar-thumb {
+                            background: rgba(255, 255, 255, 0.1);
+                            border-radius: 10px;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.15);
+                            }
+                        }
                     }
                 }
 
@@ -1243,14 +1302,21 @@ onUnmounted(() => {
                     display: flex;
                     align-items: center;
                     justify-content: center;
+                    padding: 30px;
+
 
                     .welcome-content {
                         text-align: center;
-                        color: #6c757d;
+                        color: rgba(255, 255, 255, 0.3);
 
                         h2 {
-                            margin-bottom: 10px;
+                            margin-bottom: 16px;
                             color: #e4e4e4;
+                            font-size: 22px;
+                        }
+
+                        p {
+                            font-size: 15px;
                         }
                     }
                 }

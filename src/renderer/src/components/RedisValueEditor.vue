@@ -4,7 +4,7 @@
         <div class="editor-header">
             <div class="type-indicator">{{ typeLabel }}</div>
             <button class="save-btn" @click="handleSave" :disabled="!hasChanges">
-                <span class="icon"><img src="../assets/save.svg" style="height: 25px;width: 25px;" /></span>
+                <span class="icon"><img src="../assets/save.svg" style="height: 20px;width: 20px;" /></span>
                 保存更改
             </button>
         </div>
@@ -315,51 +315,57 @@ const handleCompositionEnd = () => {
 
 <style scoped lang="scss">
 .redis-value-editor {
-    background: #1e1e1e;
-    border-radius: 8px;
+    background: linear-gradient(-45deg, #222f36 0%, #565c5e 100%);
+    border-radius: 12px;
     padding: 20px;
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    background-image: url('../assets/wavy-lines.svg');
+    gap: 16px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 
     .editor-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding-bottom: 15px;
+        padding-bottom: 12px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 
         .type-indicator {
-            font-size: 14px;
-            color: #8e8e8e;
-            padding: 6px 12px;
+            font-size: 13px;
+            color: #e4e4e4;
+            padding: 5px 12px;
             background: rgba(255, 255, 255, 0.05);
-            border-radius: 4px;
+            border-radius: 8px;
+            font-weight: 500;
         }
 
         .save-btn {
             display: flex;
             align-items: center;
-            gap: 8px;
-            background: #2ea043;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: all 0.2s ease;
             justify-content: center;
-            align-items: center;
+            gap: 8px;
+            background: #4c9baf;
+            color: white;
+            padding: 6px 16px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
 
             &:hover {
-                background: #2c974b;
+                background: #4c9baf;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
             }
 
             &:disabled {
-                background: #1b4b26;
+                background: rgba(76, 175, 80, 0.2);
+                color: rgba(255, 255, 255, 0.4);
                 cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
             }
 
             .icon {
@@ -371,59 +377,77 @@ const handleCompositionEnd = () => {
     textarea,
     input {
         width: 100%;
-        background: #2d2d2d;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 6px;
+        background: #333333;
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
         padding: 10px 14px;
         color: #e4e4e4;
         font-family: 'Monaco', 'Consolas', monospace;
-        font-size: 14px;
-        transition: all 0.2s ease;
+        font-size: 13px;
+        transition: all 0.3s ease;
 
         &:focus {
-            border-color: #58a6ff;
+            border-color: #4CAF50;
             outline: none;
-            box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+            background: #3a3a3a;
         }
 
         &::placeholder {
-            color: #666;
+            color: rgba(255, 255, 255, 0.3);
         }
     }
 
     button {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 8px 14px;
+        gap: 8px;
+        padding: 6px 14px;
         border-radius: 6px;
         border: none;
         cursor: pointer;
         font-size: 13px;
         font-weight: 500;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
 
         &.add-btn {
-            background: #238636;
+            background: #4CAF50;
             color: white;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
 
             &:hover {
-                background: #2ea043;
-            }
-        }
-
-        &.remove-btn {
-            background: transparent;
-            color: #f85149;
-            padding: 4px;
-            border-radius: 4px;
-
-            &:hover {
-                background: rgba(248, 81, 73, 0.1);
+                background: #43A047;
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
             }
 
             .icon {
                 font-size: 18px;
+                font-weight: bold;
+            }
+        }
+
+        &.remove-btn {
+            background: rgba(255, 77, 79, 0.1);
+            color: #ff4d4f;
+            padding: 5px;
+            height: 24px;
+            width: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+
+            &:hover {
+                background: rgba(255, 77, 79, 0.2);
+                color: #ff7875;
+                transform: rotate(90deg);
+            }
+
+            .icon {
+                font-size: 16px;
+                line-height: 1;
             }
         }
     }
@@ -434,7 +458,7 @@ const handleCompositionEnd = () => {
     .zset-editor {
         display: flex;
         flex-direction: column;
-        gap: 15px;
+        gap: 14px;
         height: 100%;
         overflow: hidden;
 
@@ -444,22 +468,22 @@ const handleCompositionEnd = () => {
         .zset-items {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             overflow-y: auto;
             padding-right: 10px;
 
             &::-webkit-scrollbar {
-                width: 8px;
+                width: 6px;
             }
 
             &::-webkit-scrollbar-track {
                 background: rgba(255, 255, 255, 0.05);
-                border-radius: 4px;
+                border-radius: 10px;
             }
 
             &::-webkit-scrollbar-thumb {
                 background: rgba(255, 255, 255, 0.1);
-                border-radius: 4px;
+                border-radius: 10px;
 
                 &:hover {
                     background: rgba(255, 255, 255, 0.15);
@@ -473,19 +497,26 @@ const handleCompositionEnd = () => {
                 display: flex;
                 gap: 10px;
                 align-items: center;
-                background: rgba(255, 255, 255, 0.03);
-                padding: 10px;
-                border-radius: 6px;
-                transition: all 0.2s ease;
+                background: #333333;
+                padding: 10px 14px;
+                border-radius: 10px;
+                transition: all 0.3s ease;
+                border: 2px solid rgba(255, 255, 255, 0.1);
 
                 &:hover {
-                    background: rgba(255, 255, 255, 0.05);
+                    background: #3a3a3a;
+                    border-color: #4CAF50;
+                    transform: translateX(4px);
                 }
 
                 .item-index {
-                    color: #8b949e;
-                    font-size: 12px;
-                    min-width: 40px;
+                    color: #e4e4e4;
+                    font-size: 11px;
+                    font-weight: 500;
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 3px 6px;
+                    border-radius: 8px;
+                    min-width: 36px;
                 }
             }
         }
@@ -495,7 +526,13 @@ const handleCompositionEnd = () => {
         .hash-item {
             input.hash-key {
                 width: 40%;
-                background: rgba(88, 166, 255, 0.1);
+                background: rgba(76, 175, 80, 0.1);
+                border-color: rgba(76, 175, 80, 0.2);
+
+                &:focus {
+                    background: #3a3a3a;
+                    border-color: #4CAF50;
+                }
             }
 
             input.hash-value {
@@ -513,6 +550,13 @@ const handleCompositionEnd = () => {
             input.zset-score {
                 width: 30%;
                 text-align: right;
+                background: rgba(76, 175, 80, 0.1);
+                border-color: rgba(76, 175, 80, 0.2);
+
+                &:focus {
+                    background: #3a3a3a;
+                    border-color: #4CAF50;
+                }
             }
         }
     }
@@ -521,15 +565,16 @@ const handleCompositionEnd = () => {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
-        color: #f85149;
+        gap: 12px;
+        color: #ff4d4f;
         font-size: 14px;
-        padding: 40px;
-        background: rgba(248, 81, 73, 0.1);
-        border-radius: 6px;
+        padding: 30px;
+        background: rgba(255, 77, 79, 0.1);
+        border-radius: 10px;
+        border: 2px dashed rgba(255, 77, 79, 0.3);
 
         .icon {
-            font-size: 20px;
+            font-size: 24px;
         }
     }
 }
