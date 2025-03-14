@@ -1,11 +1,11 @@
 <template>
     <div class="redis-container">
         <div class="header">
-            <div class="tabs" ref="operationTab">命令行</div>
-            <div class="tabs">面板ui</div>
+            <div class="tabs" :class="{ active: activeTab === 'terminal' }" @click="switchTab('terminal')">命令行</div>
+            <div class="tabs" :class="{ active: activeTab === 'ui' }" @click="switchTab('ui')">面板UI</div>
         </div>
         <div class="main-content">
-            <div class="client" ref="clientDiv">
+            <div class="client" ref="clientDiv" v-show="activeTab === 'terminal'">
                 <div class="terminal">
                     <div class="connection-status" :class="{ connected: isConnected }">
                     </div>
@@ -49,6 +49,62 @@
                     </div>
                 </div>
             </div>
+            <div class="redis-ui" v-show="activeTab === 'ui'">
+                <div class="ui-container">
+                    <div class="sidebar">
+                        <div class="database-list">
+                            <div class="section-title">数据库列表</div>
+                            <div class="db-item" v-for="db in databases" :key="db.index"
+                                :class="{ active: currentDb === db.index }" @click="selectDatabase(db.index)">
+                                DB{{ db.index }} ({{ db.keys || 0 }})
+                            </div>
+                        </div>
+                        <div class="key-list">
+                            <div class="section-title">
+                                键列表
+                                <div class="search-box">
+                                    <input type="text" v-model="keyPattern" placeholder="搜索键...">
+                                </div>
+                            </div>
+                            <div class="key-items" v-if="keys.length">
+                                <div class="key-item" v-for="key in filteredKeys" :key="key.name"
+                                    :class="{ active: currentKey === key.name }" @click="selectKey(key)">
+                                    <span class="key-type" :class="key.type">{{ key.type }}</span>
+                                    <span class="key-name">{{ key.name }}</span>
+                                </div>
+                            </div>
+                            <div class="no-keys" v-else>
+                                暂无数据
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content-area">
+                        <div class="key-info" v-if="currentKey">
+                            <div class="info-header">
+                                <div class="key-details">
+                                    <h3>{{ currentKey }}</h3>
+                                    <span class="type-badge">{{ currentKeyType }}</span>
+                                </div>
+                                <div class="actions">
+                                    <button @click="refreshKey">刷新</button>
+                                    <button class="danger" @click="deleteKey">删除</button>
+                                </div>
+                            </div>
+                            <div class="key-content">
+                                <!-- 根据不同的键类型显示不同的内容编辑器 -->
+                                <RedisValueEditor :type="currentKeyType" :value="keyContent"
+                                    @update="updateKeyContent" />
+                            </div>
+                        </div>
+                        <div class="welcome-screen" v-else>
+                            <div class="welcome-content">
+                                <h2>欢迎使用Redis图形界面</h2>
+                                <p>请从左侧选择数据库和键以开始操作</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <ToolsSidebar @toolSelect="handleToolSelect" />
         </div>
     </div>
@@ -56,9 +112,11 @@
 
 <script setup>
 // @ts-nocheck
-import { ref, onMounted, nextTick, onUnmounted, watch } from 'vue'
+import { ref, onMounted, nextTick, onUnmounted, watch, computed } from 'vue'
 // 侧边工具栏组件
 import ToolsSidebar from '../components/ToolsSidebar.vue'
+// Redis值编辑器组件
+import RedisValueEditor from '../components/RedisValueEditor.vue'
 // Redis 常用命令列表
 import { redisCommands } from '../constants/redisCommands'
 
@@ -77,6 +135,17 @@ const showSuggestions = ref(false)
 const suggestions = ref([])
 const selectedSuggestionIndex = ref(-1)
 const currentCommandHelp = ref(null)
+
+// 添加新的状态管理
+const activeTab = ref('terminal')
+const databases = ref([])
+const currentDb = ref(0)
+const keys = ref([])
+const currentKey = ref(null)
+const currentKeyType = ref(null)
+const keyContent = ref(null)
+const keyPattern = ref('')
+const currentKeyEditor = ref(null)
 
 const updateArrowPosition = () => {
     if (!operationTab.value || !clientDiv.value) return
@@ -358,6 +427,219 @@ watch(showSuggestions, () => {
     })
 }, { flush: 'post' })
 
+// 切换标签页
+const switchTab = async (tab) => {
+    activeTab.value = tab
+    if (tab === 'ui' && isConnected.value) {
+        await loadDatabases()
+    }
+}
+
+// 加载数据库列表
+const loadDatabases = async () => {
+    try {
+        const result = await ipcRenderer.invoke('redis:execute', 'INFO keyspace')
+        // 解析INFO keyspace的结果来获取数据库列表
+        databases.value = parseDatabaseInfo(result.result)
+        if (databases.value.length > 0) {
+            selectDatabase(0)
+        }
+    } catch (error) {
+        console.error('Failed to load databases:', error)
+    }
+}
+
+// 解析数据库信息
+const parseDatabaseInfo = (info) => {
+    const dbList = []
+    if (typeof info === 'string') {
+        const lines = info.split('\n')
+        lines.forEach(line => {
+            const match = line.match(/db(\d+):keys=(\d+)/)
+            if (match) {
+                dbList.push({
+                    index: parseInt(match[1]),
+                    keys: parseInt(match[2])
+                })
+            }
+        })
+    }
+    return dbList
+}
+
+// 选择数据库
+const selectDatabase = async (dbIndex) => {
+    try {
+        await ipcRenderer.invoke('redis:execute', `SELECT ${dbIndex}`)
+        currentDb.value = dbIndex
+        await loadKeys()
+    } catch (error) {
+        console.error('Failed to select database:', error)
+    }
+}
+
+// 加载键列表
+const loadKeys = async () => {
+    try {
+        const result = await ipcRenderer.invoke('redis:execute', 'KEYS *')
+        keys.value = await Promise.all(result.result.map(async key => {
+            const typeResult = await ipcRenderer.invoke('redis:execute', `TYPE ${key}`)
+            return {
+                name: key,
+                type: typeResult.result
+            }
+        }))
+    } catch (error) {
+        console.error('Failed to load keys:', error)
+    }
+}
+
+// 过滤键列表
+const filteredKeys = computed(() => {
+    if (!keyPattern.value) return keys.value
+    return keys.value.filter(key =>
+        key.name.toLowerCase().includes(keyPattern.value.toLowerCase())
+    )
+})
+
+// 选择键
+const selectKey = async (key) => {
+    currentKey.value = key.name
+    currentKeyType.value = key.type
+    await loadKeyContent(key)
+}
+
+// 加载键内容
+const loadKeyContent = async (key) => {
+    try {
+        let command
+        switch (key.type) {
+            case 'string':
+                command = `GET ${key.name}`
+                break
+            case 'list':
+                command = `LRANGE ${key.name} 0 -1`
+                break
+            case 'set':
+                command = `SMEMBERS ${key.name}`
+                break
+            case 'hash':
+                command = `HGETALL ${key.name}`
+                break
+            case 'zset':
+                command = `ZRANGE ${key.name} 0 -1 WITHSCORES`
+                break
+        }
+        const result = await ipcRenderer.invoke('redis:execute', command)
+
+        // 对集合类型的结果进行排序
+        if (key.type === 'set' && Array.isArray(result.result)) {
+            result.result.sort()
+        }
+
+        keyContent.value = result.result
+    } catch (error) {
+        console.error('Failed to load key content:', error)
+    }
+}
+
+// 刷新键内容
+const refreshKey = async () => {
+    if (currentKey.value) {
+        const key = keys.value.find(k => k.name === currentKey.value)
+        if (key) {
+            await loadKeyContent(key)
+        }
+    }
+}
+
+// 删除键
+const deleteKey = async () => {
+    if (currentKey.value) {
+        try {
+            await ipcRenderer.invoke('redis:execute', `DEL ${currentKey.value}`)
+            currentKey.value = null
+            currentKeyType.value = null
+            keyContent.value = null
+            await loadKeys()
+        } catch (error) {
+            console.error('Failed to delete key:', error)
+        }
+    }
+}
+
+
+
+// 更新键内容
+const updateKeyContent = async (newValue) => {
+    try {
+        if (updateTimeout) clearTimeout(updateTimeout)
+
+        updateTimeout = setTimeout(async () => {
+            switch (currentKeyType.value) {
+                case 'list':
+                    // 使用管道命令来优化性能
+                    const pipeline = [`DEL ${currentKey.value}`]
+                    if (newValue && newValue.length > 0) {
+                        pipeline.push(`RPUSH ${currentKey.value} ${newValue.join(' ')}`)
+                    }
+                    // 执行管道命令
+                    for (const cmd of pipeline) {
+                        await ipcRenderer.invoke('redis:execute', cmd)
+                    }
+                    break
+                case 'set':
+                    await ipcRenderer.invoke('redis:execute', `DEL ${currentKey.value}`)
+                    if (newValue && newValue.length > 0) {
+                        const members = newValue.filter(Boolean)
+                        if (members.length > 0) {
+                            await ipcRenderer.invoke('redis:execute', `SADD ${currentKey.value} ${members.join(' ')}`)
+                        }
+                    }
+                    break
+                case 'string':
+                    await ipcRenderer.invoke('redis:execute', `SET ${currentKey.value} ${newValue}`)
+                    break
+                case 'hash':
+                    await ipcRenderer.invoke('redis:execute', `DEL ${currentKey.value}`)
+                    if (newValue && newValue.length > 0) {
+                        for (let i = 0; i < newValue.length; i += 2) {
+                            if (newValue[i] && newValue[i + 1] !== undefined) {
+                                await ipcRenderer.invoke('redis:execute',
+                                    `HSET ${currentKey.value} ${newValue[i]} ${newValue[i + 1]}`)
+                            }
+                        }
+                    }
+                    break
+                case 'zset':
+                    await ipcRenderer.invoke('redis:execute', `DEL ${currentKey.value}`)
+                    if (newValue && newValue.length > 0) {
+                        for (let i = 0; i < newValue.length; i += 2) {
+                            if (newValue[i] && newValue[i + 1] !== undefined) {
+                                await ipcRenderer.invoke('redis:execute',
+                                    `ZADD ${currentKey.value} ${newValue[i + 1]} ${newValue[i]}`)
+                            }
+                        }
+                    }
+                    break
+            }
+            await refreshKey()
+        }, 300)
+    } catch (error) {
+        console.error('Failed to update key content:', error)
+    }
+}
+
+// 监听连接状态变化
+watch(isConnected, async (newValue) => {
+    if (newValue && activeTab.value === 'ui') {
+        await loadDatabases()
+    }
+})
+
+// 添加防抖变量
+let updateTimeout = null
+
 onMounted(async () => {
     updateArrowPosition()
     window.addEventListener('resize', updateArrowPosition)
@@ -402,6 +684,21 @@ onUnmounted(() => {
 
             &:first-child {
                 color: #ffffff;
+
+                &::after {
+                    content: '';
+                    position: absolute;
+                    bottom: -1px;
+                    left: 0;
+                    width: 100%;
+                    height: 2px;
+                    background: linear-gradient(90deg, #ff4b2b, #ff416c);
+                }
+            }
+
+            &.active {
+                color: #ffffff;
+                position: relative;
 
                 &::after {
                     content: '';
@@ -704,6 +1001,256 @@ onUnmounted(() => {
                                 font-size: 12px;
                                 font-family: 'Consolas', monospace;
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .redis-ui {
+        flex: 1;
+        margin: 15px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        overflow: hidden;
+
+        .ui-container {
+            display: flex;
+            height: 100%;
+
+            .sidebar {
+                width: 300px;
+                background: rgba(0, 0, 0, 0.2);
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                display: flex;
+                flex-direction: column;
+
+                .database-list {
+                    padding: 15px;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+                    .section-title {
+                        color: #adb5bd;
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        margin-bottom: 10px;
+                    }
+
+                    .db-item {
+                        padding: 8px 12px;
+                        color: #e4e4e4;
+                        cursor: pointer;
+                        border-radius: 4px;
+                        transition: all 0.2s ease;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.05);
+                        }
+
+                        &.active {
+                            background: rgba(255, 75, 43, 0.2);
+                            color: #ff4b2b;
+                        }
+                    }
+                }
+
+                .key-list {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+
+                    .section-title {
+                        padding: 15px;
+                        color: #adb5bd;
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+                        .search-box {
+                            margin-top: 10px;
+
+                            input {
+                                width: 100%;
+                                background: rgba(0, 0, 0, 0.2);
+                                border: 1px solid rgba(255, 255, 255, 0.1);
+                                border-radius: 4px;
+                                padding: 6px 10px;
+                                color: #e4e4e4;
+                                font-size: 12px;
+
+                                &::placeholder {
+                                    color: #6c757d;
+                                }
+                            }
+                        }
+                    }
+
+                    .key-items {
+                        flex: 1;
+                        overflow-y: auto;
+                        padding: 15px;
+
+                        .key-item {
+                            display: flex;
+                            align-items: center;
+                            padding: 8px 12px;
+                            cursor: pointer;
+                            border-radius: 4px;
+                            margin-bottom: 4px;
+                            transition: all 0.2s ease;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.05);
+                            }
+
+                            &.active {
+                                background: rgba(255, 75, 43, 0.2);
+                                color: #ff4b2b;
+                            }
+
+                            .key-type {
+                                padding: 2px 6px;
+                                border-radius: 3px;
+                                font-size: 12px;
+                                margin-right: 8px;
+
+                                &.string {
+                                    background: rgba(40, 167, 69, 0.2);
+                                    color: #28a745;
+                                }
+
+                                &.list {
+                                    background: rgba(0, 123, 255, 0.2);
+                                    color: #007bff;
+                                }
+
+                                &.set {
+                                    background: rgba(255, 193, 7, 0.2);
+                                    color: #ffc107;
+                                }
+
+                                &.hash {
+                                    background: rgba(111, 66, 193, 0.2);
+                                    color: #6f42c1;
+                                }
+
+                                &.zset {
+                                    background: rgba(23, 162, 184, 0.2);
+                                    color: #17a2b8;
+                                }
+                            }
+
+                            .key-name {
+                                flex: 1;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                white-space: nowrap;
+                            }
+                        }
+                    }
+
+                    .no-keys {
+                        padding: 20px;
+                        text-align: center;
+                        color: #6c757d;
+                    }
+                }
+            }
+
+            .content-area {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+
+                .key-info {
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+
+                    .info-header {
+                        padding: 15px;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+
+                        .key-details {
+                            display: flex;
+                            align-items: center;
+                            gap: 10px;
+
+                            h3 {
+                                margin: 0;
+                                color: #e4e4e4;
+                            }
+
+                            .type-badge {
+                                padding: 2px 8px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                background: rgba(255, 75, 43, 0.2);
+                                color: #ff4b2b;
+                            }
+                        }
+
+                        .actions {
+                            display: flex;
+                            gap: 10px;
+
+                            button {
+                                padding: 6px 12px;
+                                border-radius: 4px;
+                                border: none;
+                                cursor: pointer;
+                                font-size: 12px;
+                                transition: all 0.2s ease;
+
+                                &:not(.danger) {
+                                    background: rgba(255, 255, 255, 0.1);
+                                    color: #e4e4e4;
+
+                                    &:hover {
+                                        background: rgba(255, 255, 255, 0.2);
+                                    }
+                                }
+
+                                &.danger {
+                                    background: rgba(220, 53, 69, 0.2);
+                                    color: #dc3545;
+
+                                    &:hover {
+                                        background: rgba(220, 53, 69, 0.3);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    .key-content {
+                        flex: 1;
+                        padding: 15px;
+                        overflow: auto;
+                    }
+                }
+
+                .welcome-screen {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+
+                    .welcome-content {
+                        text-align: center;
+                        color: #6c757d;
+
+                        h2 {
+                            margin-bottom: 10px;
+                            color: #e4e4e4;
                         }
                     }
                 }
