@@ -8,6 +8,12 @@ const api = {
     connect: (config) => ipcRenderer.invoke('redis:connect', config),
     disconnect: () => ipcRenderer.invoke('redis:disconnect'),
     execute: (command) => ipcRenderer.invoke('redis:execute', command)
+  },
+  // MySQL 相关操作
+  mysql: {
+    connect: (config) => ipcRenderer.invoke('mysql:connect', config),
+    disconnect: () => ipcRenderer.invoke('mysql:disconnect'),
+    execute: (query) => ipcRenderer.invoke('mysql:execute', query)
   }
 }
 
@@ -20,7 +26,10 @@ if (process.contextIsolated) {
       ...electronAPI,
       ipcRenderer: {
         invoke: (channel, data) => {
-          const validChannels = ['redis:connect', 'redis:disconnect', 'redis:execute']
+          const validChannels = [
+            'redis:connect', 'redis:disconnect', 'redis:execute',
+            'mysql:connect', 'mysql:disconnect', 'mysql:execute'
+          ]
           if (validChannels.includes(channel)) {
             return ipcRenderer.invoke(channel, data)
           }
@@ -37,7 +46,10 @@ if (process.contextIsolated) {
     ...electronAPI,
     ipcRenderer: {
       invoke: (channel, data) => {
-        const validChannels = ['redis:connect', 'redis:disconnect', 'redis:execute']
+        const validChannels = [
+          'redis:connect', 'redis:disconnect', 'redis:execute',
+          'mysql:connect', 'mysql:disconnect', 'mysql:execute'
+        ]
         if (validChannels.includes(channel)) {
           return ipcRenderer.invoke(channel, data)
         }

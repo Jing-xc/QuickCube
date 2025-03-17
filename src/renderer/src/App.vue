@@ -4,7 +4,6 @@
   </div>
 </template>
 <script setup>
-import HeaderVue from './components/Header.vue'
 </script>
 <style lang="scss" scoped>
 .body {

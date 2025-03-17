@@ -3,8 +3,10 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import Redis from 'ioredis'
+import mysql from 'mysql2/promise'
 
 let redisClient = null
+let mysqlConnection = null
 
 // Redis 连接处理
 ipcMain.handle('redis:connect', async (_, config) => {
@@ -56,6 +58,169 @@ ipcMain.handle('redis:execute', async (_, command) => {
 
     const result = await redisClient[cmd](...params)
     return { success: true, result }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+// MySQL 连接处理
+ipcMain.handle('mysql:connect', async (_, config) => {
+  try {
+    if (mysqlConnection) {
+      await mysqlConnection.end()
+    }
+
+    mysqlConnection = await mysql.createConnection({
+      host: config.host || 'localhost',
+      port: config.port || 3306,
+      user: config.user,
+      password: config.password,
+      database: config.database
+    })
+
+    await mysqlConnection.connect()
+    return { success: true }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+// MySQL 断开连接
+ipcMain.handle('mysql:disconnect', async () => {
+  try {
+    if (mysqlConnection) {
+      await mysqlConnection.end()
+      mysqlConnection = null
+    }
+    return { success: true }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+// MySQL 命令执行
+ipcMain.handle('mysql:execute', async (_, query) => {
+  try {
+    if (!mysqlConnection) {
+      throw new Error('Not connected to MySQL server')
+    }
+
+    // 处理特殊命令
+    const lowerQuery = query.toLowerCase().trim()
+    
+    // 处理 USE 命令
+    if (lowerQuery.startsWith('use ')) {
+      const [rows] = await mysqlConnection.query(query)
+      return { 
+        success: true, 
+        message: `Database changed to ${query.split(' ')[1]}`
+      }
+    }
+    
+    // 处理 SHOW DATABASES 命令
+    if (lowerQuery === 'show databases') {
+      const [rows] = await mysqlConnection.query(query)
+      return {
+        success: true,
+        data: rows.map(row => ({
+          "数据库名": row.Database,
+        }))
+      }
+    }
+    
+    // 处理 SHOW TABLES 命令
+    if (lowerQuery === 'show tables') {
+      const [rows] = await mysqlConnection.query(query)
+      const key = Object.keys(rows[0])[0]
+      return {
+        success: true,
+        data: rows.map(row => ({
+          "表名": row[key]
+        }))
+      }
+    }
+    
+    // 处理 DESCRIBE 命令
+    if (lowerQuery.startsWith('describe ') || lowerQuery.startsWith('desc ')) {
+      const [rows] = await mysqlConnection.query(query)
+      return {
+        success: true,
+        data: rows.map(row => ({
+          "字段名": row.Field,
+          "类型": row.Type,
+          "允许空": row.Null,
+          "键": row.Key,
+          "默认值": row.Default || '',
+          "额外": row.Extra || ''
+        }))
+      }
+    }
+
+    // 处理其他查询
+    const [rows] = await mysqlConnection.query(query)
+    
+    // 如果是 SELECT 查询且有结果
+    if (Array.isArray(rows) && rows.length > 0) {
+      // 获取所有列名
+      const columns = Object.keys(rows[0])
+      
+      // 处理每一行数据
+      const formattedRows = rows.map(row => {
+        const formattedRow = {}
+        columns.forEach(col => {
+          // 处理特殊类型的值
+          let value = row[col]
+          
+          // 处理不同类型的值
+          if (value === null || value === undefined) {
+            value = 'NULL'
+          } else if (value instanceof Date) {
+            value = value.toLocaleString('zh-CN')
+          } else if (Buffer.isBuffer(value)) {
+            value = `<Binary: ${value.length} bytes>`
+          } else if (typeof value === 'object') {
+            value = JSON.stringify(value)
+          } else {
+            // 转换为字符串
+            value = String(value)
+            // 如果是长字符串，截断显示
+            if (value.length > 50) {
+              value = value.substring(0, 47) + '...'
+            }
+          }
+          
+          // 添加格式化后的值
+          formattedRow[col] = value
+        })
+        return formattedRow
+      })
+
+      return { 
+        success: true, 
+        data: formattedRows,
+        summary: `查询返回 ${rows.length} 条记录`
+      }
+    }
+    
+    // 处理 INSERT、UPDATE、DELETE 等操作
+    if (rows.affectedRows !== undefined) {
+      let message = ''
+      if (lowerQuery.startsWith('insert')) {
+        message = `已插入 ${rows.affectedRows} 行记录`
+        if (rows.insertId) {
+          message += `，自增ID: ${rows.insertId}`
+        }
+      } else if (lowerQuery.startsWith('update')) {
+        message = `已更新 ${rows.affectedRows} 行记录`
+      } else if (lowerQuery.startsWith('delete')) {
+        message = `已删除 ${rows.affectedRows} 行记录`
+      } else {
+        message = `操作影响了 ${rows.affectedRows} 行记录`
+      }
+      return { success: true, message }
+    }
+
+    return { success: true, data: rows }
   } catch (error) {
     return { success: false, message: error.message }
   }
@@ -127,11 +292,15 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 确保在应用退出时关闭Redis连接
+// 确保在应用退出时关闭所有连接
 app.on('before-quit', async () => {
   if (redisClient) {
     await redisClient.quit()
     redisClient = null
+  }
+  if (mysqlConnection) {
+    await mysqlConnection.end()
+    mysqlConnection = null
   }
 })
 

@@ -105,7 +105,7 @@
                     </div>
                 </div>
             </div>
-            <ToolsSidebar @toolSelect="handleToolSelect" />
+            <ToolsSidebar />
         </div>
     </div>
 </template>
@@ -119,6 +119,9 @@ import ToolsSidebar from '../components/ToolsSidebar.vue'
 import RedisValueEditor from '../components/RedisValueEditor.vue'
 // Redis 常用命令列表
 import { redisCommands } from '../constants/redisCommands'
+// 在 script setup 部分添加
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 // 使用window对象访问通过contextBridge暴露的API
 const ipcRenderer = window.electron.ipcRenderer
@@ -396,12 +399,6 @@ const handleInput = () => {
         currentCommandHelp.value = null
     }
     updateSuggestions()
-}
-
-// 添加工具选择处理函数
-const handleToolSelect = (toolName) => {
-    console.log(`Selected tool: ${toolName}`)
-    // 这里可以添加工具切换的逻辑
 }
 
 // 监听命令输入

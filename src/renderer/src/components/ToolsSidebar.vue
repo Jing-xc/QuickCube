@@ -1,7 +1,7 @@
 <template>
     <div class="tools-sidebar">
-        <div class="tool-item" v-for="tool in tools" :key="tool.name" :class="{ active: tool.active }"
-            @click="handleToolClick(tool)">
+        <div class="tool-item" v-for="tool in state.tools" :key="tool.name"
+            :class="{ active: state.activeToolName === tool.name }" @click="handleToolClick(tool)">
             <div class="tool-icon" :class="tool.iconClass">
                 <img :src="tool.icon" class="image" />
             </div>
@@ -11,24 +11,57 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue'
+import { defineProps, reactive, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import RedisIcon from '../assets/Redis.svg'
 import MySQLIcon from '../assets/mysql.svg'
 import MongoIcon from '../assets/mongo.svg'
 import PostgresIcon from '../assets/Postgresql.svg'
 
-const emit = defineEmits(['toolSelect'])
+const router = useRouter()
+const route = useRoute()
 
-const tools = [
-    { name: 'Redis', icon: RedisIcon, iconClass: 'redis', active: true },
-    { name: 'MySQL', icon: MySQLIcon, iconClass: 'mysql', active: false },
-    { name: 'MongoDB', icon: MongoIcon, iconClass: 'mongo', active: false },
-    { name: 'PostgreSQL', icon: PostgresIcon, iconClass: 'postgres', active: false }
-]
+const state = reactive({
+    activeToolName: 'Redis',
+    tools: [
+        { name: 'Redis', icon: RedisIcon, iconClass: 'redis' },
+        { name: 'MySQL', icon: MySQLIcon, iconClass: 'mysql' },
+        { name: 'MongoDB', icon: MongoIcon, iconClass: 'mongo' },
+        { name: 'PostgreSQL', icon: PostgresIcon, iconClass: 'postgres' }
+    ]
+})
+
+// 监听路由变化，同步更新工具栏状态
+watch(() => route.name, (newRoute) => {
+    if (newRoute) {
+        const matchedTool = state.tools.find(
+            tool => tool.name.toLowerCase() === newRoute.toLowerCase()
+        )
+        if (matchedTool) {
+            state.activeToolName = matchedTool.name
+        }
+    }
+}, { immediate: true })
 
 const handleToolClick = (tool) => {
-    emit('toolSelect', tool.name)
+    const targetRoute = `/${tool.name.toLowerCase()}`
+    if (router.currentRoute.value.path !== targetRoute) {
+        router.push(targetRoute)
+    }
 }
+
+// 初始化时同步路由状态
+onMounted(() => {
+    const currentRoute = route.name
+    if (currentRoute) {
+        const matchedTool = state.tools.find(
+            tool => tool.name.toLowerCase() === currentRoute.toLowerCase()
+        )
+        if (matchedTool) {
+            state.activeToolName = matchedTool.name
+        }
+    }
+})
 </script>
 
 <style scoped lang="scss">
