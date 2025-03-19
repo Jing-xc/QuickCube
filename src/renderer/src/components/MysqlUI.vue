@@ -1,6 +1,44 @@
 <template>
-    <div>
-        <!-- 数据库连接管理 -->
+    <div class="mysql-ui-container">
+        <div class="toolbars">
+            <div class="toolbar-item">
+                <img class="toolbar-item-icon" src="../assets/link.svg">
+                <text class="toolbar-item-text">链接</text>
+            </div>
+            <div class="toolbar-item">
+                <img class="toolbar-item-icon" src="../assets/add-search.svg">
+                <text class="toolbar-item-text">查询</text>
+            </div>
+        </div>
+        <div class="ui-container">
+            <div class="sidebar">
+                <div class="connections">
+                    <div v-for="conn in connections" :key="conn.id" class="connection-items"
+                        @click="selectConnection(conn)">
+                        <div class="connection-item">
+                            <img class="connection-item-icon" src="../assets/mysql.svg">
+                            <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
+                        conn.name
+                    }}</text>
+                            <text v-else class="connection-item-text">{{ conn.name
+                                }}</text>
+                            <img class="connection-item-icon" src="../assets/open.svg" style="width: 16px;height: 16px;"
+                                v-if="currentConnection?.id === conn.id">
+                        </div>
+                        <!-- 展示数据库列表 -->
+                        <div class="databases" v-if="currentConnection">
+                            <div v-for="db in databases" :key="db" class="database-item" @click="currentDatabase = db">
+                                <img class="database-item-icon" src="../assets/database.svg">
+                                <text class="database-item-text">{{ db }}</text>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    <!-- <div>
         <div class="connection-manager">
             <div class="connection-list">
                 <div class="connection-item" v-for="conn in connections" :key="conn.id"
@@ -17,7 +55,6 @@
             </button>
         </div>
 
-        <!-- 数据库列表 -->
         <div class="databases" v-if="currentConnection">
             <div class="database" v-for="db in databases" :key="db" @click="currentDatabase = db">
                 <img src="../assets/database.svg" alt="database" class="database-icon" />
@@ -25,7 +62,6 @@
             </div>
         </div>
 
-        <!-- 新增/编辑连接对话框 -->
         <div class="dialog" v-if="showConnectionDialog">
             <div class="dialog-content">
                 <h3>{{ editingConnection ? '编辑连接' : '新增连接' }}</h3>
@@ -57,16 +93,14 @@
                 </form>
             </div>
         </div>
-    </div>
+    </div> -->
 
 
 
-    <div class="mysql-ui-container">
-        <!-- 加载动画 -->
+    <!-- <div class="mysql-ui-container">
         <div class="loading-overlay" v-if="isLoading">
             <div class="loading-spinner"></div>
         </div>
-        <!-- 数据库选择区域 -->
         <div class="database-selector">
             <select v-model="currentDatabase" @change="handleDatabaseChange">
                 <option value="">选择数据库</option>
@@ -78,7 +112,6 @@
             </select>
         </div>
 
-        <!-- 操作工具栏 -->
         <div class="toolbar">
             <button class="btn" @click="fetchDatabases">
                 <i class="fas fa-sync"></i> 链接
@@ -95,7 +128,6 @@
             </div>
         </div>
 
-        <!-- 数据表格 -->
         <div class="table-container" v-if="currentTable">
             <table>
                 <thead>
@@ -127,7 +159,6 @@
             </table>
         </div>
 
-        <!-- 新增/编辑对话框 -->
         <div class="dialog" v-if="showAddDialog || showEditDialog">
             <div class="dialog-content">
                 <h3>{{ showEditDialog ? '编辑数据' : '新增数据' }}</h3>
@@ -143,7 +174,7 @@
                 </form>
             </div>
         </div>
-    </div>
+    </div> -->
 </template>
 
 <script setup>
@@ -171,10 +202,11 @@ const connections = ref([
     {
         id: 'default',
         name: 'localhost',
-        host: 'localhost',
-        port: 3306,
+        host: '127.0.0.1',
+        port: 3306,  // 添加默认端口
         user: 'root',
-        password: '847047477'
+        password: '847047477',
+        database: 'mysql'
     }
 ])
 const currentConnection = ref(null)
@@ -194,7 +226,14 @@ const selectConnection = async (connection) => {
     // 尝试连接并获取数据库列表
     try {
         isLoading.value = true
-        const result = await ipcRenderer.invoke('mysql:connect', connection)
+        const { host, port, user, password, database } = connection;
+        const result = await ipcRenderer.invoke('mysql:connect', {
+            host,
+            port,  // 添加默认端口
+            user,
+            password,
+            database
+        })
         if (result.success) {
             await fetchDatabases()
         }
@@ -438,484 +477,165 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-.connection-manager {
-    width: 200px;
-    padding: 10px;
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
-
-    .connection-list {
-        margin-bottom: 10px;
-    }
-
-    .connection-item {
-        display: flex;
-        align-items: center;
-        padding: 8px;
-        margin-bottom: 5px;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: all 0.3s ease;
-
-        &:hover {
-            background: rgba(33, 150, 243, 0.1);
-        }
-
-        &.active {
-            background: rgba(33, 150, 243, 0.2);
-        }
-
-        .connection-icon {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-        }
-
-        .delete-btn {
-            margin-left: auto;
-            padding: 4px;
-            background: none;
-            border: none;
-            color: #666;
-            cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-
-            &:hover {
-                color: #f44336;
-            }
-        }
-
-        &:hover .delete-btn {
-            opacity: 1;
-        }
-    }
-
-    .add-connection-btn {
-        width: 100%;
-        padding: 8px;
-        background: #2196F3;
-        border: none;
-        border-radius: 4px;
-        color: white;
-        cursor: pointer;
-        transition: all 0.3s ease;
-
-        &:hover {
-            background: #1976D2;
-        }
-    }
-}
-
-.databases {
-    width: 200px;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.2);
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    overflow-x: auto;
-
-    /* 自定义滚动条样式 */
-    &::-webkit-scrollbar {
-        width: 3px;
-        height: 3px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 4px;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
-        transition: background 0.3s ease;
-
-        &:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-    }
-
-    .database {
-        margin: 5px 10px;
-        cursor: pointer;
-        transition: background-color 0.3s ease;
-        display: flex;
-        align-items: center;
-        white-space: nowrap; // 防止文本换行
-        min-width: fit-content; // 确保内容不会被压缩
-
-        .database-icon {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-            flex-shrink: 0; // 防止图标被压缩
-        }
-
-        &:hover {
-            background: rgba(33, 150, 243, 0.1);
-        }
-    }
-}
-
 .mysql-ui-container {
-    padding: 24px;
+    width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 24px;
-    max-width: 1400px;
-    margin: 0 auto;
 
-    .database-selector {
+    .toolbars {
+        width: 100%;
+        height: 60px;
+        background: linear-gradient(to right, #6d737a, #282e2d);
         display: flex;
-        gap: 16px;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-
-        select {
-            padding: 10px 16px;
-            border-radius: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            background: rgba(0, 0, 0, 0.2);
-            color: #e4e4e4;
-            min-width: 220px;
-            font-size: 14px;
-            transition: all 0.3s ease;
-
-            &:hover {
-                border-color: rgba(33, 150, 243, 0.5);
-            }
-
-            &:focus {
-                outline: none;
-                border-color: #2196F3;
-                box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-            }
-        }
-    }
-
-    .toolbar {
-        display: flex;
-        gap: 12px;
         align-items: center;
-        padding: 16px;
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
 
-        .btn {
-            padding: 10px 20px;
-            border-radius: 6px;
-            border: none;
-            background: #2196F3;
-            color: white;
-            cursor: pointer;
+        .toolbar-item {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-
-            i {
-                font-size: 16px;
-            }
+            height: 50px;
+            width: 50px;
+            margin: 3px 10px;
+            cursor: pointer;
+            transform: scale(0.9);
 
             &:hover {
-                background: #1976D2;
-                transform: translateY(-1px);
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 5px;
+                transform: scale(1.0);
             }
 
-            &:active {
-                transform: translateY(0);
+            .toolbar-item-icon {
+                width: 30px;
+                height: 30px;
+                margin-top: 3px;
             }
 
-            &:disabled {
-                background: #666;
-                cursor: not-allowed;
-                opacity: 0.7;
-            }
-        }
+            .toolbar-item-text {
+                color: #ddd;
+                font-size: 12px;
 
-        .search-box {
-            position: relative;
-            margin-left: auto;
-            min-width: 300px;
-
-            input {
-                width: 100%;
-                padding: 10px 40px 10px 16px;
-                border-radius: 6px;
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                background: rgba(0, 0, 0, 0.2);
-                color: #e4e4e4;
-                font-size: 14px;
-                transition: all 0.3s ease;
-
+                /* 由于 .toolbar-item-text 是一个独立的元素，
+                   需要将 hover 效果放在父元素 .toolbar-item 下 */
                 &:hover {
-                    border-color: rgba(33, 150, 243, 0.5);
-                }
-
-                &:focus {
-                    outline: none;
-                    border-color: #2196F3;
-                    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
-                }
-            }
-
-            i {
-                position: absolute;
-                right: 12px;
-                top: 50%;
-                transform: translateY(-50%);
-                color: #888;
-                font-size: 16px;
-            }
-        }
-    }
-
-    .table-container {
-        flex: 1;
-        overflow: auto;
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 1px;
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
-
-            th,
-            td {
-                padding: 14px 16px;
-                text-align: left;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-
-            th {
-                background: rgba(0, 0, 0, 0.3);
-                font-weight: 500;
-                color: #fff;
-                position: sticky;
-                top: 0;
-                z-index: 1;
-
-                &:first-child {
-                    border-top-left-radius: 8px;
-                }
-
-                &:last-child {
-                    border-top-right-radius: 8px;
-                }
-
-                .sort-icon {
-                    cursor: pointer;
-                    margin-left: 6px;
-                    opacity: 0.5;
-                    transition: opacity 0.3s ease;
-
-                    &:hover {
-                        opacity: 1;
-                    }
-                }
-            }
-
-            tr {
-                transition: background-color 0.3s ease;
-
-                &:hover {
-                    background: rgba(33, 150, 243, 0.1);
-                }
-
-                &:last-child td {
-                    border-bottom: none;
-                }
-            }
-
-            .actions {
-                white-space: nowrap;
-                width: 120px;
-
-                button {
-                    padding: 8px;
-                    border: none;
-                    border-radius: 4px;
-                    margin-right: 8px;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-
-                    &.btn-edit {
-                        background: #4CAF50;
-                        color: white;
-
-                        &:hover {
-                            background: #388E3C;
-                            transform: translateY(-1px);
-                        }
-                    }
-
-                    &.btn-delete {
-                        background: #F44336;
-                        color: white;
-
-                        &:hover {
-                            background: #D32F2F;
-                            transform: translateY(-1px);
-                        }
-                    }
-
-                    &:active {
-                        transform: translateY(0);
-                    }
+                    color: #fff;
                 }
             }
         }
     }
 
-    .dialog {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
+    .ui-container {
+        height: calc(100% - 60px);
+        width: 100%;
 
-        .dialog-content {
-            background: #2a2d31;
-            border-radius: 8px;
-            padding: 20px;
-            min-width: 400px;
-            max-width: 600px;
-            max-height: 80vh;
+        .sidebar {
+            height: 100%;
+            width: 200px;
             overflow-y: auto;
-
-            h3 {
-                margin: 0 0 20px 0;
-                color: #e4e4e4;
-            }
-
-            .form-group {
-                margin-bottom: 15px;
-
-                label {
-                    display: block;
-                    margin-bottom: 5px;
-                    color: #adb5bd;
-                }
-
-                input {
-                    width: 100%;
-                    padding: 8px;
-                    border-radius: 4px;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    background: rgba(0, 0, 0, 0.2);
-                    color: #e4e4e4;
-
-                    &:focus {
-                        outline: none;
-                        border-color: #2196F3;
-                    }
-                }
-            }
-
-            .dialog-buttons {
-                display: flex;
-                gap: 10px;
-                justify-content: flex-end;
-                margin-top: 20px;
-
-                button {
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    border: none;
-                    cursor: pointer;
-
-                    &.btn-primary {
-                        background: #2196F3;
-                        color: white;
-
-                        &:hover {
-                            background: #1976D2;
-                        }
-                    }
-
-                    &.btn-secondary {
-                        background: #666;
-                        color: white;
-
-                        &:hover {
-                            background: #555;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// 添加一些动画效果
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-.dialog {
-    animation: fadeIn 0.2s ease-in-out;
-}
-
-// 适配暗色主题
-@media (prefers-color-scheme: dark) {
-    .mysql-ui-container {
-        background: #1a1d21;
-        color: #e4e4e4;
-    }
-}
-
-// 响应式布局
-@media screen and (max-width: 768px) {
-    .mysql-ui-container {
-        padding: 10px;
-
-        .database-selector {
+            overflow-x: auto;
+            background: linear-gradient(to right, #6d737a, #282e2d);
+            color: #fff;
+            //padding: 10px 0;
+            /* 设置盒模型的计算方式为 border-box
+               这样 padding 和 border 的尺寸会包含在元素的总宽高中
+               而不会额外增加元素的实际占用空间 */
+            box-sizing: border-box;
+            display: flex;
             flex-direction: column;
 
-            select {
-                width: 100%;
-            }
-        }
+            .connections {
+                margin-bottom: 20px;
 
-        .toolbar {
-            flex-wrap: wrap;
+                .connection-items {
+                    display: flex;
+                    flex-direction: column;
 
-            .search-box {
-                width: 100%;
-                margin: 10px 0;
 
-                input {
-                    width: 100%;
+                    .connection-item {
+                        height: 25px;
+                        width: 100%;
+                        padding: 5px 0;
+                        cursor: pointer;
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: flex-start;
+                        align-items: center;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.1);
+                        }
+
+                        .connection-item-icon {
+                            height: 20px;
+                            width: 20px;
+                            margin-left: 10px;
+                        }
+
+                        .connection-item-text {
+                            font-size: 12px;
+                            color: #ddd;
+
+                            &:hover {
+                                color: #fff;
+                            }
+                        }
+
+                        .connect {
+                            font-size: 12px;
+                            color: #3fd11a;
+
+                            &:hover {
+                                color: #3fd11a;
+                            }
+                        }
+                    }
+
+                    .databases {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        margin-left: 10px;
+
+                        .database-item {
+                            height: 25px;
+                            width: 100%;
+                            padding: 5px 0;
+                            cursor: pointer;
+                            display: flex;
+                            flex-direction: row;
+                            justify-content: flex-start;
+                            align-items: center;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.1);
+                            }
+
+                            .database-item-icon {
+                                height: 20px;
+                                width: 20px;
+                                margin-left: 10px;
+                            }
+
+                            .database-item-text {
+                                font-size: 12px;
+                                color: #ddd;
+
+                                &:hover {
+                                    color: #fff;
+                                }
+                            }
+                        }
+                    }
+
                 }
             }
-        }
-
-        .dialog .dialog-content {
-            width: 90%;
-            margin: 0 10px;
         }
     }
 }
