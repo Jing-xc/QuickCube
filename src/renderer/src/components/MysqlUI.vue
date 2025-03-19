@@ -18,8 +18,8 @@
                             <div class="connection-item-inner" @click="selectConnection(conn)">
                                 <img class="connection-item-icon" src="../assets/mysql.svg">
                                 <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
-                                    conn.name
-                                }}</text>
+                        conn.name
+                    }}</text>
                                 <text v-else class="connection-item-text">{{ conn.name
                                     }}</text>
                             </div>
@@ -684,6 +684,27 @@ onMounted(() => {
                 flex: 1;
                 min-height: 0;
                 overflow: auto;
+
+                /* 自定义滚动条样式 */
+                &::-webkit-scrollbar {
+                    width: 3px;
+                    height: 3px;
+                }
+
+                &::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 3px;
+                }
+
+                &::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.2);
+                    border-radius: 3px;
+
+                    &:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                    }
+                }
+
                 background: rgba(255, 255, 255, 0.1);
                 border-radius: 4px;
 
@@ -704,10 +725,25 @@ onMounted(() => {
 
                     th {
                         background: rgba(0, 0, 0, 0.2);
-                        font-weight: bold;
                         position: sticky;
                         top: 0;
                         z-index: 1;
+                        font-size: 12px;
+                        font-weight: bold;
+                        color: #d5e2c0;
+
+                        &:hover {
+                            background: rgba(0, 0, 0, 0.3);
+                        }
+                    }
+
+                    td {
+                        font-size: 12px;
+                        color: #ddd;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.05);
+                        }
                     }
 
                     tbody tr:hover {
