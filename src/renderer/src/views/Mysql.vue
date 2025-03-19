@@ -50,10 +50,7 @@
                 </div>
             </div>
             <div class="mysql-ui" v-show="activeTab === 'ui'">
-                <!-- UI部分将在后续实现 -->
-                <div class="coming-soon">
-                    UI面板功能开发中...
-                </div>
+                <MysqlUI :isConnected="isConnected" />
             </div>
             <ToolsSidebar />
         </div>
@@ -68,6 +65,7 @@
 import { ref, onMounted, nextTick, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ToolsSidebar from '../components/ToolsSidebar.vue'
+import MysqlUI from '../components/MysqlUI.vue'
 import { mysqlCommands } from '../constants/mysqlCommands'
 
 const router = useRouter()
