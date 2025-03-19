@@ -13,168 +13,72 @@
         <div class="ui-container">
             <div class="sidebar">
                 <div class="connections">
-                    <div v-for="conn in connections" :key="conn.id" class="connection-items"
-                        @click="selectConnection(conn)">
+                    <div v-for="conn in connections" :key="conn.id" class="connection-items">
                         <div class="connection-item">
-                            <img class="connection-item-icon" src="../assets/mysql.svg">
-                            <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
-                        conn.name
-                    }}</text>
-                            <text v-else class="connection-item-text">{{ conn.name
+                            <div class="connection-item-inner" @click="selectConnection(conn)">
+                                <img class="connection-item-icon" src="../assets/mysql.svg">
+                                <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
+                                    conn.name
                                 }}</text>
-                            <img class="connection-item-icon" src="../assets/open.svg" style="width: 16px;height: 16px;"
+                                <text v-else class="connection-item-text">{{ conn.name
+                                    }}</text>
+                            </div>
+
+                            <img class="connection-item-icon" src="../assets/open.svg" style="width: 12px;height: 12px;"
                                 v-if="currentConnection?.id === conn.id">
                         </div>
                         <!-- 展示数据库列表 -->
                         <div class="databases" v-if="currentConnection">
-                            <div v-for="db in databases" :key="db" class="database-item" @click="currentDatabase = db">
-                                <img class="database-item-icon" src="../assets/database.svg">
-                                <text class="database-item-text">{{ db }}</text>
+                            <div v-for="db in databases" :key="db" class="database-items">
+                                <div class="database-item">
+                                    <div class="database-item-inner" @click="fetchTables(db)">
+                                        <img class="database-item-icon" src="../assets/database.svg">
+                                        <text v-if="currentDatabase === db" class=" database-item-text connect">{{ db
+                                            }}</text>
+                                        <text v-else class=" database-item-text">{{ db
+                                            }}</text>
+                                    </div>
+
+                                    <img class="close" src="../assets/close.svg" v-if="currentDatabase === db"
+                                        @click="currentDatabase = ''">
+                                </div>
+                                <!-- 添加表的展示 -->
+                                <div class="tables" v-if="currentDatabase == db">
+                                    <div v-for="table in tables" :key="table" class="table-items"
+                                        @click="handleTableChange(table)">
+                                        <div class="table-item">
+                                            <img class="table-item-icon" src="../assets/table.svg">
+                                            <text class="table-item-text">{{ table }}</text>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
                         </div>
                     </div>
                 </div>
-
+            </div>
+            <div class="content-center">
+                <div class="table-container">
+                    <table v-if="columns.length > 0">
+                        <thead>
+                            <tr>
+                                <th v-for="column in columns" :key="column['字段名']">{{ column['字段名'] }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(row, index) in tableData" :key="index">
+                                <td v-for="column in columns" :key="column.Field">{{ row[column['字段名']] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-else class="no-data" style="text-align: center; padding: 20px; color: #ddd;">
+                        暂无数据
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    <!-- <div>
-        <div class="connection-manager">
-            <div class="connection-list">
-                <div class="connection-item" v-for="conn in connections" :key="conn.id"
-                    :class="{ active: currentConnection?.id === conn.id }" @click="selectConnection(conn)">
-                    <img src="../assets/database-server.svg" alt="connection" class="connection-icon" />
-                    <span>{{ conn.name }}</span>
-                    <button class="delete-btn" @click.stop="deleteConnection(conn)">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-            <button class="add-connection-btn" @click="showConnectionDialog = true">
-                <i class="fas fa-plus"></i> 新增连接
-            </button>
-        </div>
-
-        <div class="databases" v-if="currentConnection">
-            <div class="database" v-for="db in databases" :key="db" @click="currentDatabase = db">
-                <img src="../assets/database.svg" alt="database" class="database-icon" />
-                {{ db }}
-            </div>
-        </div>
-
-        <div class="dialog" v-if="showConnectionDialog">
-            <div class="dialog-content">
-                <h3>{{ editingConnection ? '编辑连接' : '新增连接' }}</h3>
-                <form @submit.prevent="handleConnectionSubmit">
-                    <div class="form-group">
-                        <label>连接名称</label>
-                        <input v-model="connectionForm.name" required placeholder="例如: 本地数据库">
-                    </div>
-                    <div class="form-group">
-                        <label>主机地址</label>
-                        <input v-model="connectionForm.host" required placeholder="localhost">
-                    </div>
-                    <div class="form-group">
-                        <label>端口</label>
-                        <input v-model="connectionForm.port" type="number" required placeholder="3306">
-                    </div>
-                    <div class="form-group">
-                        <label>用户名</label>
-                        <input v-model="connectionForm.user" required placeholder="root">
-                    </div>
-                    <div class="form-group">
-                        <label>密码</label>
-                        <input v-model="connectionForm.password" type="password" placeholder="请输入密码">
-                    </div>
-                    <div class="dialog-buttons">
-                        <button type="submit" class="btn-primary">保存</button>
-                        <button type="button" class="btn-secondary" @click="closeConnectionDialog">取消</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div> -->
-
-
-
-    <!-- <div class="mysql-ui-container">
-        <div class="loading-overlay" v-if="isLoading">
-            <div class="loading-spinner"></div>
-        </div>
-        <div class="database-selector">
-            <select v-model="currentDatabase" @change="handleDatabaseChange">
-                <option value="">选择数据库</option>
-                <option v-for="db in databases" :key="db" :value="db">{{ db }}</option>
-            </select>
-            <select v-model="currentTable" @change="handleTableChange">
-                <option value="">选择数据表</option>
-                <option v-for="table in tables" :key="table" :value="table">{{ table }}</option>
-            </select>
-        </div>
-
-        <div class="toolbar">
-            <button class="btn" @click="fetchDatabases">
-                <i class="fas fa-sync"></i> 链接
-            </button>
-            <button class="btn" @click="refreshData">
-                <i class="fas fa-sync"></i> 刷新
-            </button>
-            <button class="btn" @click="showAddDialog = true" :disabled="!currentTable">
-                <i class="fas fa-plus"></i> 新增
-            </button>
-            <div class="search-box">
-                <input type="text" v-model="searchQuery" placeholder="搜索..." @input="handleSearch">
-                <i class="fas fa-search"></i>
-            </div>
-        </div>
-
-        <div class="table-container" v-if="currentTable">
-            <table>
-                <thead>
-                    <tr>
-                        <th v-for="column in columns" :key="column">
-                            {{ column }}
-                            <span class="sort-icon" @click="sortBy(column)">
-                                ⇅
-                            </span>
-                        </th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="(row, index) in filteredData" :key="index">
-                        <td v-for="column in columns" :key="column">
-                            {{ row[column] }}
-                        </td>
-                        <td class="actions">
-                            <button class="btn-edit" @click="editRow(row)">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn-delete" @click="deleteRow(row)">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="dialog" v-if="showAddDialog || showEditDialog">
-            <div class="dialog-content">
-                <h3>{{ showEditDialog ? '编辑数据' : '新增数据' }}</h3>
-                <form @submit.prevent="handleSubmit">
-                    <div v-for="column in columns" :key="column" class="form-group">
-                        <label>{{ column }}</label>
-                        <input v-model="formData[column]" :placeholder="column">
-                    </div>
-                    <div class="dialog-buttons">
-                        <button type="submit" class="btn-primary">确定</button>
-                        <button type="button" class="btn-secondary" @click="closeDialog">取消</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div> -->
 </template>
 
 <script setup>
@@ -306,8 +210,8 @@ const fetchDatabases = async () => {
 }
 
 // 获取表格列表
-const fetchTables = async () => {
-    if (!currentDatabase.value) return
+const fetchTables = async (db) => {
+    currentDatabase.value = db
     try {
         const result = await ipcRenderer.invoke('mysql:execute', `SHOW TABLES FROM ${currentDatabase.value}`)
         if (result.success) {
@@ -323,10 +227,11 @@ const fetchTables = async () => {
 const fetchColumns = async () => {
     if (!currentTable.value) return
     try {
-        const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentTable.value}`)
+        const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentDatabase.value}.${currentTable.value}`)
         if (result.success) {
             alert(JSON.stringify(result.data));
-            columns.value = result.data.map(row => row['字段名'])
+            //columns.value = result.data.map(row => row['字段名'])
+            columns.value = result.data
         }
     } catch (error) {
         console.error('获取表结构失败:', error)
@@ -337,7 +242,8 @@ const fetchColumns = async () => {
 const fetchTableData = async () => {
     if (!currentTable.value) return
     try {
-        const result = await ipcRenderer.invoke('mysql:execute', `SELECT * FROM ${currentTable.value}`)
+        const result = await ipcRenderer.invoke('mysql:execute', `SELECT * FROM ${currentDatabase.value}.${currentTable.value}`)
+        alert(JSON.stringify(result));
         if (result.success) {
             alert(JSON.stringify(result.data));
             tableData.value = result.data
@@ -360,7 +266,9 @@ const handleDatabaseChange = async () => {
 }
 
 // 处理表格切换
-const handleTableChange = async () => {
+const handleTableChange = async (table) => {
+    alert('切换表格');
+    currentTable.value = table;
     await fetchColumns()
     await fetchTableData()
 }
@@ -482,6 +390,7 @@ onMounted(() => {
     height: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 
     .toolbars {
         width: 100%;
@@ -489,6 +398,7 @@ onMounted(() => {
         background: linear-gradient(to right, #6d737a, #282e2d);
         display: flex;
         align-items: center;
+        flex-shrink: 0;
 
         .toolbar-item {
             display: flex;
@@ -526,17 +436,39 @@ onMounted(() => {
     }
 
     .ui-container {
-        height: calc(100% - 60px);
-        width: 100%;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
 
         .sidebar {
-            height: 100%;
             width: 200px;
+            flex-shrink: 0;
             overflow-y: auto;
-            overflow-x: auto;
+            overflow-x: hidden;
+
+            /* 自定义滚动条样式 */
+            &::-webkit-scrollbar {
+                width: 3px;
+                height: 3px;
+            }
+
+            &::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.1);
+                border-radius: 3px;
+            }
+
+            &::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.2);
+                border-radius: 3px;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                }
+            }
+
             background: linear-gradient(to right, #6d737a, #282e2d);
             color: #fff;
-            //padding: 10px 0;
             /* 设置盒模型的计算方式为 border-box
                这样 padding 和 border 的尺寸会包含在元素的总宽高中
                而不会额外增加元素的实际占用空间 */
@@ -551,15 +483,14 @@ onMounted(() => {
                     display: flex;
                     flex-direction: column;
 
-
                     .connection-item {
                         height: 25px;
-                        width: 100%;
-                        padding: 5px 0;
+                        width: calc(100% - 20px);
+                        margin: 5px 10px;
                         cursor: pointer;
                         display: flex;
                         flex-direction: row;
-                        justify-content: flex-start;
+                        justify-content: space-between;
                         align-items: center;
                         white-space: nowrap;
                         overflow: hidden;
@@ -569,61 +500,19 @@ onMounted(() => {
                             background: rgba(255, 255, 255, 0.1);
                         }
 
-                        .connection-item-icon {
-                            height: 20px;
-                            width: 20px;
-                            margin-left: 10px;
-                        }
-
-                        .connection-item-text {
-                            font-size: 12px;
-                            color: #ddd;
-
-                            &:hover {
-                                color: #fff;
-                            }
-                        }
-
-                        .connect {
-                            font-size: 12px;
-                            color: #3fd11a;
-
-                            &:hover {
-                                color: #3fd11a;
-                            }
-                        }
-                    }
-
-                    .databases {
-                        display: flex;
-                        flex-direction: column;
-                        align-items: flex-start;
-                        margin-left: 10px;
-
-                        .database-item {
-                            height: 25px;
-                            width: 100%;
-                            padding: 5px 0;
-                            cursor: pointer;
+                        .connection-item-inner {
                             display: flex;
                             flex-direction: row;
-                            justify-content: flex-start;
+                            justify-content: center;
                             align-items: center;
-                            white-space: nowrap;
-                            overflow: hidden;
-                            text-overflow: ellipsis;
 
-                            &:hover {
-                                background: rgba(255, 255, 255, 0.1);
-                            }
-
-                            .database-item-icon {
+                            .connection-item-icon {
                                 height: 20px;
                                 width: 20px;
                                 margin-left: 10px;
                             }
 
-                            .database-item-text {
+                            .connection-item-text {
                                 font-size: 12px;
                                 color: #ddd;
 
@@ -631,12 +520,204 @@ onMounted(() => {
                                     color: #fff;
                                 }
                             }
+
+                            .connect {
+                                font-size: 12px;
+                                color: #3fd11a;
+
+                                &:hover {
+                                    color: #3fd11a;
+                                }
+                            }
                         }
+
+
                     }
 
+                    .databases {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-start;
+                        margin-left: 10px;
+                        width: 100%;
+
+                        .database-items {
+                            display: flex;
+                            flex-direction: column;
+                            width: 100%;
+
+                            .database-item {
+                                height: 25px;
+                                width: calc(100% - 20px);
+                                padding: 5px 0;
+                                cursor: pointer;
+                                display: flex;
+                                flex-direction: row;
+                                justify-content: space-between;
+                                align-items: center;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+
+                                &:hover {
+                                    background: rgba(255, 255, 255, 0.1);
+                                }
+
+                                .close {
+                                    width: 12px;
+                                    height: 12px;
+                                }
+
+                                .database-item-inner {
+                                    display: flex;
+                                    flex-direction: row;
+                                    justify-content: center;
+                                    align-items: center;
+
+                                    .database-item-icon {
+                                        height: 20px;
+                                        width: 20px;
+                                        margin-left: 10px;
+                                    }
+
+
+
+                                    .database-item-text {
+                                        font-size: 12px;
+                                        color: #ddd;
+                                        margin-left: 5px;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+
+
+                                        &:hover {
+                                            color: #fff;
+                                        }
+                                    }
+
+                                    .connect {
+                                        font-size: 12px;
+                                        color: #3fd11a;
+
+                                        &:hover {
+                                            color: #3fd11a;
+                                        }
+                                    }
+                                }
+
+
+                            }
+
+                            .tables {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                margin-left: 30px;
+
+                                .table-items {
+                                    display: flex;
+                                    flex-direction: column;
+
+                                    .table-item {
+                                        height: 25px;
+                                        width: 100%;
+                                        padding: 5px 0;
+                                        cursor: pointer;
+                                        display: flex;
+                                        flex-direction: row;
+                                        justify-content: flex-start;
+                                        align-items: center;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+
+                                        &:hover {
+                                            background: rgba(255, 255, 255, 0.1);
+                                        }
+
+                                        .table-item-icon {
+                                            height: 20px;
+                                            width: 20px;
+                                        }
+
+                                        .table-item-text {
+                                            font-size: 12px;
+                                            color: #ddd;
+
+                                            &:hover {
+                                                color: #fff;
+                                            }
+                                        }
+
+                                        .connect {
+                                            font-size: 12px;
+                                            color: #3fd11a;
+
+                                            &:hover {
+                                                color: #3fd11a;
+                                            }
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        .content-center {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-image: url('../assets/wavy-lines.svg');
+            background-size: cover;
+            background-position: center;
+            padding: 10px;
+            box-sizing: border-box;
+
+            .table-container {
+                flex: 1;
+                min-height: 0;
+                overflow: auto;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 4px;
+
+                table {
+                    width: max-content;
+                    min-width: 100%;
+                    border-collapse: collapse;
+                    color: #ddd;
+
+                    th,
+                    td {
+                        padding: 8px 16px;
+                        text-align: left;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                        min-width: 100px;
+                        white-space: nowrap;
+                    }
+
+                    th {
+                        background: rgba(0, 0, 0, 0.2);
+                        font-weight: bold;
+                        position: sticky;
+                        top: 0;
+                        z-index: 1;
+                    }
+
+                    tbody tr:hover {
+                        background: rgba(255, 255, 255, 0.05);
+                    }
                 }
             }
         }
     }
 }
 </style>
+
+<style scoped></style>
