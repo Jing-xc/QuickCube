@@ -18,8 +18,8 @@
                             <div class="connection-item-inner" @click="selectConnection(conn)">
                                 <img class="connection-item-icon" src="../assets/mysql.svg">
                                 <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
-                        conn.name
-                    }}</text>
+                                    conn.name
+                                }}</text>
                                 <text v-else class="connection-item-text">{{ conn.name
                                     }}</text>
                             </div>
@@ -53,7 +53,6 @@
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -74,6 +73,19 @@
                     </table>
                     <div v-else class="no-data" style="text-align: center; padding: 20px; color: #ddd;">
                         暂无数据
+                    </div>
+                </div>
+                <div class="pagination-container">
+                    <div class="pagination">
+                        <button @click="prevPage" :disabled="currentPage === 1" class="page-btn">
+                            上一页
+                        </button>
+                        <span class="page-info">
+                            第 {{ currentPage }} 页
+                        </span>
+                        <button @click="nextPage" class="page-btn">
+                            下一页
+                        </button>
                     </div>
                 </div>
             </div>
@@ -99,6 +111,8 @@ const showEditDialog = ref(false)
 const formData = ref({})
 const sortConfig = ref({ column: '', direction: 'asc' })
 const isLoading = ref(false)
+const currentPage = ref(1);
+const pageSize = ref(1000);
 
 
 // 数据库连接相关的状态
@@ -229,7 +243,6 @@ const fetchColumns = async () => {
     try {
         const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentDatabase.value}.${currentTable.value}`)
         if (result.success) {
-            alert(JSON.stringify(result.data));
             //columns.value = result.data.map(row => row['字段名'])
             columns.value = result.data
         }
@@ -238,14 +251,25 @@ const fetchColumns = async () => {
     }
 }
 
+const nextPage = () => {
+    currentPage.value++
+    fetchTableData()
+}
+
+const prevPage = () => {
+    if (currentPage.value > 1) {
+        currentPage.value--
+        fetchTableData()
+    }
+}
+
 // 获取表数据
 const fetchTableData = async () => {
     if (!currentTable.value) return
+
     try {
-        const result = await ipcRenderer.invoke('mysql:execute', `SELECT * FROM ${currentDatabase.value}.${currentTable.value}`)
-        alert(JSON.stringify(result));
+        const result = await ipcRenderer.invoke('mysql:execute', `SELECT * FROM ${currentDatabase.value}.${currentTable.value} LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`)
         if (result.success) {
-            alert(JSON.stringify(result.data));
             tableData.value = result.data
         }
     } catch (error) {
@@ -267,7 +291,6 @@ const handleDatabaseChange = async () => {
 
 // 处理表格切换
 const handleTableChange = async (table) => {
-    alert('切换表格');
     currentTable.value = table;
     await fetchColumns()
     await fetchTableData()
@@ -680,6 +703,43 @@ onMounted(() => {
             padding: 10px;
             box-sizing: border-box;
 
+            .pagination-container {
+                padding: 5px;
+                margin-top: 10px;
+                border-radius: 4px;
+
+                .pagination {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+
+                    .page-btn {
+                        padding: 2px 5px;
+                        background: rgba(255, 255, 255, 0.1);
+                        border: none;
+                        border-radius: 4px;
+                        color: #ddd;
+                        cursor: pointer;
+                        font-size: 11px;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.2);
+                        }
+
+                        &:disabled {
+                            opacity: 0.5;
+                            cursor: not-allowed;
+                        }
+                    }
+
+                    .page-info {
+                        color: #ddd;
+                        font-size: 11px;
+                    }
+                }
+            }
+
             .table-container {
                 flex: 1;
                 min-height: 0;
@@ -755,5 +815,3 @@ onMounted(() => {
     }
 }
 </style>
-
-<style scoped></style>
