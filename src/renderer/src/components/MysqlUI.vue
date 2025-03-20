@@ -30,7 +30,7 @@
                             </div>
 
                             <img class="connection-item-icon" src="../assets/open.svg" style="width: 12px;height: 12px;"
-                                v-if="currentConnection?.id === conn.id">
+                                v-if="currentConnection?.id === conn.id" @click="closeConnection">
                         </div>
                         <!-- 展示数据库列表 -->
                         <div class="databases" v-if="currentConnection">
@@ -186,6 +186,38 @@ const selectConnection = async (connection) => {
     } catch (error) {
         ElMessage({
             message: '连接失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false
+    }
+}
+
+//关闭链接
+const closeConnection = async () => {
+    try {
+        isLoading.value = true
+        //await new Promise(resolve => setTimeout(resolve, 1000))
+        const { host, port, user, password } = currentConnection.value;
+        const result = await ipcRenderer.invoke('mysql:disconnect', { host, port, user, password, database: currentDatabase.value })
+        databases.value = [];
+        currentDatabase.value = '';
+        tables.value = [];
+        columns.value = [];
+        tableData.value = [];
+        currentTable.value = '';
+        sqls.value = '';
+        selectedColumns.value = {};
+        currentConnection.value = null;
+        ElMessage({
+            message: '关闭成功',
+            type: 'success',
+            duration: 2000
+        });
+    } catch (error) {
+        ElMessage({
+            message: '关闭失败：' + error.message,
             type: 'error',
             duration: 2000
         });
