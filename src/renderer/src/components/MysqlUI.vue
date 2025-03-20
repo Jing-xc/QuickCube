@@ -14,18 +14,19 @@
                 <text class="toolbar-item-text">筛选</text>
             </div>
         </div>
-        <div class="ui-container">
+        <div class="ui-container" v-loading="isLoading" element-loading-background="rgba(122, 122, 122, 0.2)">
             <div class="sidebar">
                 <div class="connections">
                     <div v-for="conn in connections" :key="conn.id" class="connection-items">
                         <div class="connection-item">
                             <div class="connection-item-inner" @click="selectConnection(conn)">
                                 <img class="connection-item-icon" src="../assets/mysql.svg">
-                                <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
-                conn.name
-            }}</text>
-                                <text v-else class="connection-item-text">{{ conn.name
-                                    }}</text>
+                                <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">
+                                    {{ conn.name }}
+                                </text>
+                                <text v-else class="connection-item-text">
+                                    {{ conn.name }}
+                                </text>
                             </div>
 
                             <img class="connection-item-icon" src="../assets/open.svg" style="width: 12px;height: 12px;"
@@ -37,10 +38,12 @@
                                 <div class="database-item">
                                     <div class="database-item-inner" @click="fetchTables(db)">
                                         <img class="database-item-icon" src="../assets/database.svg">
-                                        <text v-if="currentDatabase === db" class=" database-item-text connect">{{ db
-                                            }}</text>
-                                        <text v-else class=" database-item-text">{{ db
-                                            }}</text>
+                                        <text v-if="currentDatabase === db" class=" database-item-text connect">
+                                            {{ db }}
+                                        </text>
+                                        <text v-else class=" database-item-text">
+                                            {{ db }}
+                                        </text>
                                     </div>
 
                                     <img class="close" src="../assets/close.svg" v-if="currentDatabase === db"
@@ -135,7 +138,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 const ipcRenderer = window.electron.ipcRenderer
 
@@ -146,18 +149,157 @@ const columns = ref([])
 const tableData = ref([])
 const currentDatabase = ref('')
 const currentTable = ref('')
-const searchQuery = ref('')
-const showAddDialog = ref(false)
-const showEditDialog = ref(false)
-const formData = ref({})
-const sortConfig = ref({ column: '', direction: 'asc' })
 const isLoading = ref(false)
 const currentPage = ref(1);
 const pageSize = ref(1000);
 const sqls = ref('');
 const showFilterDialog = ref(false)
 const selectedColumns = ref({})
+const currentConnection = ref(null)
 
+// 数据库连接列表,默认只有本地链接
+const connections = ref([
+    {
+        id: 'default',
+        name: 'localhost',
+        host: '127.0.0.1',
+        port: 3306,  // 添加默认端口
+        user: 'root',
+        password: '847047477',
+        database: 'mysql'
+    }
+])
+
+// 选择连接
+const selectConnection = async (connection) => {
+    currentConnection.value = connection
+    // 尝试连接并获取数据库列表
+    try {
+        isLoading.value = true
+        // 添加1秒延迟用于测试
+        //await new Promise(resolve => setTimeout(resolve, 1000))
+        const { host, port, user, password, database } = connection;
+        const result = await ipcRenderer.invoke('mysql:connect', { host, port, user, password, database })
+        if (result.success) {
+            await fetchDatabases()
+        }
+    } catch (error) {
+        ElMessage({
+            message: '连接失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false
+    }
+}
+
+// 获取数据库列表
+const fetchDatabases = async () => {
+    try {
+        isLoading.value = true // 开始加载
+        const result = await ipcRenderer.invoke('mysql:execute', 'SHOW DATABASES')
+        if (result.success) {
+            databases.value = result.data.map(row => row['数据库名'])
+        }
+    } catch (error) {
+        ElMessage({
+            message: '获取列表失败:' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false // 结束加载
+    }
+}
+
+// 获取表格列表
+const fetchTables = async (db) => {
+    currentDatabase.value = db
+    try {
+        isLoading.value = true // 开始加载
+        const result = await ipcRenderer.invoke('mysql:execute', `SHOW TABLES FROM ${currentDatabase.value}`)
+        if (result.success) {
+            tables.value = result.data.map(row => Object.values(row)[0])
+        }
+    } catch (error) {
+        ElMessage({
+            message: '获取列表失败:' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false // 结束加载
+    }
+}
+
+// 处理表格切换
+const handleTableChange = async (table) => {
+    currentTable.value = table;
+    await fetchColumns()
+    let sql = `SELECT * FROM ${currentDatabase.value}.${currentTable.value}`;
+    await fetchTableData(sql)
+}
+
+// 获取表结构
+const fetchColumns = async () => {
+    if (!currentTable.value) return
+    try {
+        isLoading.value = true // 开始加载
+        const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentDatabase.value}.${currentTable.value}`)
+        if (result.success) {
+            columns.value = result.data
+        }
+    } catch (error) {
+        ElMessage({
+            message: '获取表结构失败:' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false // 结束加载
+    }
+}
+
+// 获取表数据
+const fetchTableData = async (sql) => {
+    if (!currentTable.value) return
+    try {
+        isLoading.value = true // 开始加载
+        sqls.value = sql + ` LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`
+        const result = await ipcRenderer.invoke('mysql:execute', sqls.value)
+        if (result.success) {
+            tableData.value = result.data
+        }
+    } catch (error) {
+        ElMessage({
+            message: '获取表数据失败:' + error.message,
+            type: 'error',
+            duration: 2000
+        });
+    } finally {
+        isLoading.value = false // 结束加载
+    }
+}
+
+const nextPage = () => {
+    currentPage.value++
+    // 获取sql语句中LIMIT之前的部分
+    let baseSQL = sqls.value.split(' LIMIT')[0];
+    // 重新执行查询
+    fetchTableData(baseSQL);
+}
+
+const prevPage = () => {
+    if (currentPage.value > 1) {
+        currentPage.value--
+        // 获取sql语句中LIMIT之前的部分
+        let baseSQL = sqls.value.split(' LIMIT')[0];
+        // 重新执行查询
+        fetchTableData(baseSQL);
+    }
+}
+//打开筛选框
 const openFilterDialog = () => {
 
     // 判断是否选中表
@@ -205,319 +347,10 @@ const applyFilter = async () => {
     if (whereClause.length > 0) {
         sql += ` WHERE ${whereClause.join(' AND ')}`;
     }
-    sql += ` LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`;
-
-    // 更新 SQL 显示
-    sqls.value = sql;
-
-    try {
-        // 执行筛选查询
-        const result = await ipcRenderer.invoke('mysql:execute', sql);
-        if (result.success) {
-            tableData.value = result.data;
-        }
-    } catch (error) {
-        console.error('筛选数据失败:', error);
-        alert('筛选数据失败：' + error.message);
-    }
-
+    fetchTableData(sql);
     // 关闭筛选对话框
     showFilterDialog.value = false;
-
 }
-
-
-// 数据库连接相关的状态
-const connections = ref([
-    {
-        id: 'default',
-        name: 'localhost',
-        host: '127.0.0.1',
-        port: 3306,  // 添加默认端口
-        user: 'root',
-        password: '847047477',
-        database: 'mysql'
-    }
-])
-const currentConnection = ref(null)
-const showConnectionDialog = ref(false)
-const editingConnection = ref(null)
-const connectionForm = ref({
-    name: '',
-    host: '',
-    port: 3306,
-    user: '',
-    password: ''
-})
-
-// 选择连接
-const selectConnection = async (connection) => {
-    currentConnection.value = connection
-    // 尝试连接并获取数据库列表
-    try {
-        isLoading.value = true
-        const { host, port, user, password, database } = connection;
-        const result = await ipcRenderer.invoke('mysql:connect', {
-            host,
-            port,  // 添加默认端口
-            user,
-            password,
-            database
-        })
-        if (result.success) {
-            await fetchDatabases()
-        }
-    } catch (error) {
-        alert('连接失败：' + error.message)
-    } finally {
-        isLoading.value = false
-    }
-}
-
-// 删除连接
-const deleteConnection = (connection) => {
-    if (confirm(`确定要删除连接 "${connection.name}" 吗？`)) {
-        const index = connections.value.findIndex(c => c.id === connection.id)
-        if (index > -1) {
-            connections.value.splice(index, 1)
-            if (currentConnection.value?.id === connection.id) {
-                currentConnection.value = null
-                databases.value = []
-            }
-        }
-    }
-}
-
-// 处理连接表单提交
-const handleConnectionSubmit = () => {
-    const newConnection = {
-        id: editingConnection.value?.id || Date.now().toString(),
-        ...connectionForm.value
-    }
-
-    if (editingConnection.value) {
-        const index = connections.value.findIndex(c => c.id === editingConnection.value.id)
-        if (index > -1) {
-            connections.value[index] = newConnection
-        }
-    } else {
-        connections.value.push(newConnection)
-    }
-
-    closeConnectionDialog()
-}
-
-// 关闭连接对话框
-const closeConnectionDialog = () => {
-    showConnectionDialog.value = false
-    editingConnection.value = null
-    connectionForm.value = {
-        name: '',
-        host: '',
-        port: 3306,
-        user: '',
-        password: ''
-    }
-}
-
-// 修改获取数据库列表的方法
-const fetchDatabases = async () => {
-    try {
-        isLoading.value = true // 开始加载
-        const result = await ipcRenderer.invoke('mysql:execute', 'SHOW DATABASES')
-        if (result.success) {
-            databases.value = result.data.map(row => row['数据库名'])
-        }
-    } catch (error) {
-        alert('获取数据库列表失败')
-    } finally {
-        isLoading.value = false // 结束加载
-    }
-}
-
-// 获取表格列表
-const fetchTables = async (db) => {
-    currentDatabase.value = db
-    try {
-        const result = await ipcRenderer.invoke('mysql:execute', `SHOW TABLES FROM ${currentDatabase.value}`)
-        if (result.success) {
-            tables.value = result.data.map(row => Object.values(row)[0])
-        }
-    } catch (error) {
-        alert('获取表格列表失败')
-        console.error('获取表格列表失败:', error)
-    }
-}
-
-// 获取表结构
-const fetchColumns = async () => {
-    if (!currentTable.value) return
-    try {
-        const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentDatabase.value}.${currentTable.value}`)
-        if (result.success) {
-            //columns.value = result.data.map(row => row['字段名'])
-            columns.value = result.data
-        }
-    } catch (error) {
-        console.error('获取表结构失败:', error)
-    }
-}
-
-const nextPage = () => {
-    currentPage.value++
-    fetchTableData()
-}
-
-const prevPage = () => {
-    if (currentPage.value > 1) {
-        currentPage.value--
-        fetchTableData()
-    }
-}
-
-// 获取表数据
-const fetchTableData = async () => {
-    if (!currentTable.value) return
-
-    try {
-        sqls.value = `SELECT * FROM ${currentDatabase.value}.${currentTable.value} LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`;
-        const result = await ipcRenderer.invoke('mysql:execute', sqls.value)
-        if (result.success) {
-            tableData.value = result.data
-        }
-    } catch (error) {
-        console.error('获取表数据失败:', error)
-    }
-}
-
-// 处理数据库切换
-const handleDatabaseChange = async () => {
-    try {
-        await ipcRenderer.invoke('mysql:execute', `USE ${currentDatabase.value}`)
-        currentTable.value = ''
-        tables.value = []
-        await fetchTables()
-    } catch (error) {
-        console.error('切换数据库失败:', error)
-    }
-}
-
-// 处理表格切换
-const handleTableChange = async (table) => {
-    currentTable.value = table;
-    await fetchColumns()
-    await fetchTableData()
-}
-
-// 刷新数据
-const refreshData = () => {
-    fetchTableData()
-}
-
-// 搜索过滤
-const filteredData = computed(() => {
-    if (!searchQuery.value) return tableData.value
-
-    return tableData.value.filter(row =>
-        Object.values(row).some(value =>
-            String(value).toLowerCase().includes(searchQuery.value.toLowerCase())
-        )
-    )
-})
-
-// 排序处理
-const sortBy = (column) => {
-    if (sortConfig.value.column === column) {
-        sortConfig.value.direction = sortConfig.value.direction === 'asc' ? 'desc' : 'asc'
-    } else {
-        sortConfig.value.column = column
-        sortConfig.value.direction = 'asc'
-    }
-
-    tableData.value.sort((a, b) => {
-        const modifier = sortConfig.value.direction === 'asc' ? 1 : -1
-        if (a[column] < b[column]) return -1 * modifier
-        if (a[column] > b[column]) return 1 * modifier
-        return 0
-    })
-}
-
-// 编辑行
-const editRow = (row) => {
-    formData.value = { ...row }
-    showEditDialog.value = true
-}
-
-// 删除行
-const deleteRow = async (row) => {
-    if (!confirm('确定要删除这条数据吗？')) return
-
-    try {
-        const primaryKey = columns.value[0] // 假设第一列是主键
-        const result = await ipcRenderer.invoke('mysql:execute',
-            `DELETE FROM ${currentTable.value} WHERE ${primaryKey} = ?`,
-            [row[primaryKey]]
-        )
-        if (result.success) {
-            await fetchTableData()
-        }
-    } catch (error) {
-        console.error('删除数据失败:', error)
-    }
-}
-
-// 提交表单
-const handleSubmit = async () => {
-    try {
-        if (showEditDialog.value) {
-            const primaryKey = columns.value[0]
-            const sets = columns.value
-                .filter(col => col !== primaryKey)
-                .map(col => `${col} = ?`)
-                .join(', ')
-            const values = columns.value
-                .filter(col => col !== primaryKey)
-                .map(col => formData.value[col])
-            values.push(formData.value[primaryKey])
-
-            const result = await ipcRenderer.invoke('mysql:execute',
-                `UPDATE ${currentTable.value} SET ${sets} WHERE ${primaryKey} = ?`,
-                values
-            )
-            if (result.success) {
-                await fetchTableData()
-                closeDialog()
-            }
-        } else {
-            const cols = columns.value.join(', ')
-            const placeholders = columns.value.map(() => '?').join(', ')
-            const values = columns.value.map(col => formData.value[col])
-
-            const result = await ipcRenderer.invoke('mysql:execute',
-                `INSERT INTO ${currentTable.value} (${cols}) VALUES (${placeholders})`,
-                values
-            )
-            if (result.success) {
-                await fetchTableData()
-                closeDialog()
-            }
-        }
-    } catch (error) {
-        console.error('保存数据失败:', error)
-    }
-}
-
-// 关闭对话框
-const closeDialog = () => {
-    showAddDialog.value = false
-    showEditDialog.value = false
-    formData.value = {}
-}
-
-// 组件挂载时初始化
-onMounted(() => {
-    fetchDatabases()
-})
 </script>
 
 <style scoped lang="scss">
@@ -1019,7 +852,7 @@ onMounted(() => {
                 .filter-item {
                     margin-bottom: 10px;
                     color: #ddd;
-                    font-size: 14px;
+                    font-size: 10px;
                     display: flex;
                     flex-direction: row;
                     justify-content: space-between;
@@ -1050,7 +883,7 @@ onMounted(() => {
                             background: rgba(255, 255, 255, 0.1);
                             color: #ddd;
                             padding: 4px 8px;
-                            font-size: 14px;
+                            font-size: 10px;
                             outline: none;
 
                             &:focus {}
@@ -1066,10 +899,10 @@ onMounted(() => {
                             height: 25px;
                             border: none;
                             border-radius: 4px;
-                            background: #c5c9cc;
-                            color: #ddd;
+                            background: rgba(255, 255, 255, 0.1);
+                            color: #fff;
                             padding: 4px 8px;
-                            font-size: 14px;
+                            font-size: 10px;
                             outline: none;
                             margin-left: 10px;
 
@@ -1092,7 +925,7 @@ onMounted(() => {
                     border: none;
                     border-radius: 4px;
                     cursor: pointer;
-                    font-size: 14px;
+                    font-size: 12px;
 
                     &.apply-btn {
                         background: #1a73e8;
