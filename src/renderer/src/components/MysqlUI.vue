@@ -9,6 +9,10 @@
                 <img class="toolbar-item-icon" src="../assets/add-search.svg">
                 <text class="toolbar-item-text">查询</text>
             </div>
+            <div class="toolbar-item" @click="openFilterDialog">
+                <img class="toolbar-item-icon" src="../assets/search.svg">
+                <text class="toolbar-item-text">筛选</text>
+            </div>
         </div>
         <div class="ui-container">
             <div class="sidebar">
@@ -18,8 +22,8 @@
                             <div class="connection-item-inner" @click="selectConnection(conn)">
                                 <img class="connection-item-icon" src="../assets/mysql.svg">
                                 <text v-if="currentConnection?.id === conn.id" class="connection-item-text connect">{{
-                                    conn.name
-                                }}</text>
+                conn.name
+            }}</text>
                                 <text v-else class="connection-item-text">{{ conn.name
                                     }}</text>
                             </div>
@@ -75,7 +79,8 @@
                         暂无数据
                     </div>
                 </div>
-                <div class="pagination-container">
+                <div class="sqls">{{ sqls }}</div>
+                <div class=" pagination-container">
                     <div class="pagination">
                         <button @click="prevPage" :disabled="currentPage === 1" class="page-btn">
                             上一页
@@ -90,12 +95,48 @@
                 </div>
             </div>
         </div>
+        <div class="filter-dialog" v-if="showFilterDialog">
+            <div class="filter-dialog-content">
+                <div class="filter-dialog-header">
+                    <h3>筛选条件</h3>
+                    <img src="../assets/close.svg" @click="showFilterDialog = false" class="close-icon">
+                </div>
+                <div class="filter-dialog-body">
+                    <div v-for="column in columns" :key="column['字段名']" class="filter-item">
+                        <label>
+                            <input type="checkbox" :value="column['字段名']"
+                                v-model="selectedColumns[column['字段名']].enabled">
+                            {{ column['字段名'] }}
+                        </label>
+                        <div class="filter-select-container">
+                            <select class="filter-select" v-model="selectedColumns[column['字段名']].operator">
+                                <option value="=">=</option>
+                                <option value="!=">≠</option>
+                                <option value=">">&gt;</option>
+                                <option value=">=">&gt;=</option>
+                                <option value="<">&lt;</option>
+                                <option value="<=">&lt;=</option>
+                                <option value="LIKE">包含</option>
+                                <option value="NOT LIKE">不包含</option>
+                            </select>
+                            <input placeholder="输入筛选值..." class="filter-input"
+                                v-model="selectedColumns[column['字段名']].value" />
+                        </div>
+
+                    </div>
+                </div>
+                <div class="filter-dialog-footer">
+                    <button @click="applyFilter" class="apply-btn">应用</button>
+                    <button @click="showFilterDialog = false" class="cancel-btn">取消</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-
+import { ElMessage } from 'element-plus'
 const ipcRenderer = window.electron.ipcRenderer
 
 // 状态管理
@@ -113,6 +154,77 @@ const sortConfig = ref({ column: '', direction: 'asc' })
 const isLoading = ref(false)
 const currentPage = ref(1);
 const pageSize = ref(1000);
+const sqls = ref('');
+const showFilterDialog = ref(false)
+const selectedColumns = ref({})
+
+const openFilterDialog = () => {
+
+    // 判断是否选中表
+    if (columns.value.length === 0) {
+        ElMessage({
+            message: '请先选择一个表',
+            type: 'warning',
+            duration: 2000
+        });
+        return;
+    }
+
+    // 判断selectedColumns是否为空
+    if (Object.keys(selectedColumns.value).length === 0) {
+        // 如果为空,初始化selectedColumns
+        columns.value.forEach(column => {
+            selectedColumns.value[column['字段名']] = {
+                enabled: false,
+                operator: '=',
+                value: ''
+            };
+        })
+    }
+    showFilterDialog.value = true;
+}
+
+// 应用筛选
+const applyFilter = async () => {
+
+    let whereClause = [];
+
+    // 遍历所有选中的列构建 WHERE 子句
+    Object.entries(selectedColumns.value).forEach(([column, filter]) => {
+        if (filter.enabled && filter.value) {
+            if (filter.operator === 'LIKE' || filter.operator === 'NOT LIKE') {
+                whereClause.push(`${column} ${filter.operator} '%${filter.value}%'`);
+            } else {
+                whereClause.push(`${column} ${filter.operator} '${filter.value}'`);
+            }
+        }
+    });
+
+    // 构建完整的 SQL 查询
+    let sql = `SELECT * FROM ${currentDatabase.value}.${currentTable.value}`;
+    if (whereClause.length > 0) {
+        sql += ` WHERE ${whereClause.join(' AND ')}`;
+    }
+    sql += ` LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`;
+
+    // 更新 SQL 显示
+    sqls.value = sql;
+
+    try {
+        // 执行筛选查询
+        const result = await ipcRenderer.invoke('mysql:execute', sql);
+        if (result.success) {
+            tableData.value = result.data;
+        }
+    } catch (error) {
+        console.error('筛选数据失败:', error);
+        alert('筛选数据失败：' + error.message);
+    }
+
+    // 关闭筛选对话框
+    showFilterDialog.value = false;
+
+}
 
 
 // 数据库连接相关的状态
@@ -268,7 +380,8 @@ const fetchTableData = async () => {
     if (!currentTable.value) return
 
     try {
-        const result = await ipcRenderer.invoke('mysql:execute', `SELECT * FROM ${currentDatabase.value}.${currentTable.value} LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`)
+        sqls.value = `SELECT * FROM ${currentDatabase.value}.${currentTable.value} LIMIT ${pageSize.value} OFFSET ${(currentPage.value - 1) * pageSize.value}`;
+        const result = await ipcRenderer.invoke('mysql:execute', sqls.value)
         if (result.success) {
             tableData.value = result.data
         }
@@ -703,9 +816,28 @@ onMounted(() => {
             padding: 10px;
             box-sizing: border-box;
 
+            .sqls {
+                height: 25px;
+                width: 100%;
+                padding: 15px 0 5px;
+                cursor: pointer;
+                font-size: 12px;
+                color: #dddd;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: flex;
+                justify-content: flex-start;
+                align-items: center;
+
+                &:hover {
+                    color: #139dec;
+                }
+            }
+
             .pagination-container {
                 padding: 5px;
-                margin-top: 10px;
+                margin-top: 5px;
                 border-radius: 4px;
 
                 .pagination {
@@ -808,6 +940,176 @@ onMounted(() => {
 
                     tbody tr:hover {
                         background: rgba(255, 255, 255, 0.05);
+                    }
+                }
+            }
+        }
+    }
+
+    .filter-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+
+        .filter-dialog-content {
+            background: #2c3033;
+            border-radius: 8px;
+            width: 500px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+
+            .filter-dialog-header {
+                padding: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+                h3 {
+                    margin: 0;
+                    color: #ddd;
+                    font-size: 16px;
+                }
+
+                .close-icon {
+                    width: 16px;
+                    height: 16px;
+                    cursor: pointer;
+                    opacity: 0.7;
+
+                    &:hover {
+                        opacity: 1;
+                    }
+                }
+            }
+
+            .filter-dialog-body {
+                padding: 15px;
+                overflow-y: auto;
+                max-height: 400px;
+
+                /* 自定义滚动条样式 */
+                &::-webkit-scrollbar {
+                    width: 3px;
+                    height: 3px;
+                }
+
+                &::-webkit-scrollbar-track {
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 3px;
+                }
+
+                &::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.2);
+                    border-radius: 3px;
+
+                    &:hover {
+                        background: rgba(255, 255, 255, 0.3);
+                    }
+                }
+
+                .filter-item {
+                    margin-bottom: 10px;
+                    color: #ddd;
+                    font-size: 14px;
+                    display: flex;
+                    flex-direction: row;
+                    justify-content: space-between;
+                    align-items: center;
+
+                    label {
+                        display: flex;
+                        align-items: center;
+                        cursor: pointer;
+
+                        input[type="checkbox"] {
+                            margin-right: 8px;
+                        }
+                    }
+
+                    .filter-select-container {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: space-between;
+                        align-items: center;
+                        width: 220px;
+
+                        .filter-select {
+                            width: 100px;
+                            height: 25px;
+                            border: none;
+                            border-radius: 4px;
+                            background: rgba(255, 255, 255, 0.1);
+                            color: #ddd;
+                            padding: 4px 8px;
+                            font-size: 14px;
+                            outline: none;
+
+                            &:focus {}
+
+                            option {
+                                background: #2c3033;
+                                color: #ddd;
+                            }
+                        }
+
+                        .filter-input {
+                            width: 100px;
+                            height: 25px;
+                            border: none;
+                            border-radius: 4px;
+                            background: #c5c9cc;
+                            color: #ddd;
+                            padding: 4px 8px;
+                            font-size: 14px;
+                            outline: none;
+                            margin-left: 10px;
+
+                            &:focus {}
+                        }
+                    }
+                }
+            }
+
+            .filter-dialog-footer {
+                padding: 3px;
+                width: 100%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+
+
+                button {
+                    margin: 2px 10px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+
+                    &.apply-btn {
+                        background: #1a73e8;
+                        color: white;
+
+                        &:hover {
+                            background: #1557b0;
+                        }
+                    }
+
+                    &.cancel-btn {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #ddd;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.2);
+                        }
                     }
                 }
             }
