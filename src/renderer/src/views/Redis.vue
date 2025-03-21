@@ -677,20 +677,6 @@ onUnmounted(() => {
                 color: #ffffff;
             }
 
-            &:first-child {
-                color: #ffffff;
-
-                &::after {
-                    content: '';
-                    position: absolute;
-                    bottom: -1px;
-                    left: 0;
-                    width: 100%;
-                    height: 2px;
-                    background: linear-gradient(90deg, #ff4b2b, #ff416c);
-                }
-            }
-
             &.active {
                 color: #ffffff;
                 position: relative;
