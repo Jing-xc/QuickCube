@@ -1,7 +1,7 @@
 export const mysqlCommands = {
     'connect': {
         desc: '连接到 MySQL 服务器',
-        example: 'connect localhost root password mydatabase'
+        example: 'connect localhost port root password mydatabase'
     },
     'use': {
         desc: '切换数据库',

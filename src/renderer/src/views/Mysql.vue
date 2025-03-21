@@ -188,7 +188,7 @@ const getStringWidth = (str) => {
 // 显示帮助信息
 const showHelp = () => {
     appendOutput('Available Commands:', 'help')
-    appendOutput('  connect <host> <user> <password> <database> - Connect to MySQL server', 'help')
+    appendOutput('  connect <host> <port> <user> <password> <database> - Connect to MySQL server', 'help')
     appendOutput('  connect                                     - Connect with default settings', 'help')
     appendOutput('  use <database>                             - Switch to database', 'help')
     appendOutput('  show databases                             - List available databases', 'help')
@@ -286,15 +286,16 @@ const executeCommand = async () => {
                 return
             }
 
-            if (parts.length < 5) {
-                appendOutput('Usage: connect <host> <user> <password> <database>', 'error')
+            if (parts.length < 6) {
+                appendOutput('Usage: connect <host> <port> <user> <password> <database>', 'error')
                 currentCommand.value = ''
                 return
             }
 
-            const [_, host, user, password, database] = parts
+            const [_, host, port, user, password, database] = parts
             const result = await ipcRenderer.invoke('mysql:connect', {
                 host,
+                port,
                 user,
                 password,
                 database
