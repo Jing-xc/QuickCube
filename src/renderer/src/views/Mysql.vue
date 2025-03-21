@@ -637,29 +637,33 @@ onUnmounted(() => {
                     transition: all 0.3s ease;
                 }
 
+                &::after {
+                    background-color: #2196F3;
+                    opacity: 0.2;
+                }
+
                 &::before {
                     background-color: #dc3545;
                     box-shadow: 0 0 10px rgba(220, 53, 69, 0.5);
                     animation: redPulse 2s infinite;
                 }
 
-                &::after {
-                    background-color: #2196F3;
-                    opacity: 0.2;
-                }
+
 
                 &.connected {
+                    &::after {
+                        opacity: 1;
+                        box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+                        animation: bluePulse 2s infinite;
+                    }
+
                     &::before {
                         background-color: #dc3545;
                         opacity: 0.2;
                         animation: none;
                     }
 
-                    &::after {
-                        opacity: 1;
-                        box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
-                        animation: bluePulse 2s infinite;
-                    }
+
                 }
             }
 
