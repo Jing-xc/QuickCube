@@ -1,7 +1,7 @@
 <template>
     <div class="tools-sidebar">
         <div class="tool-item" v-for="tool in state.tools" :key="tool.name"
-            :class="{ active: state.activeToolName === tool.name }" @click="handleToolClick(tool)">
+            :class="[tool.iconClass, { active: state.activeToolName === tool.name }]" @click="handleToolClick(tool)">
             <div class="tool-icon" :class="tool.iconClass">
                 <img :src="tool.icon" class="image" />
             </div>
@@ -11,7 +11,7 @@
 </template>
 
 <script setup>
-import { defineProps, reactive, watch, onMounted } from 'vue'
+import { reactive, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import RedisIcon from '../assets/Redis.svg'
 import MySQLIcon from '../assets/mysql.svg'
@@ -103,8 +103,23 @@ onMounted(() => {
                 transform: translateY(-50%);
                 width: 3px;
                 height: 24px;
-                background: linear-gradient(180deg, #ff4b2b, #ff416c);
                 border-radius: 0 2px 2px 0;
+            }
+
+            &.redis::before {
+                background: #dc382d;
+            }
+
+            &.mysql::before {
+                background: #00758f;
+            }
+
+            &.mongo::before {
+                background: #13aa52;
+            }
+
+            &.postgres::before {
+                background: #336791;
             }
         }
 
@@ -120,21 +135,36 @@ onMounted(() => {
                 width: 32px;
                 height: 32px;
             }
+        }
 
-            &.redis {
-                color: #dc382d;
+        &.active {
+            background: rgba(255, 255, 255, 0.05);
+
+            &::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 3px;
+                height: 24px;
+                border-radius: 0 2px 2px 0;
             }
 
-            &.mysql {
-                color: #00758f;
+            &.redis::before {
+                background: linear-gradient(180deg, #dc382d, #b42d24);
             }
 
-            &.mongo {
-                color: #13aa52;
+            &.mysql::before {
+                background: linear-gradient(180deg, #00758f, #005c72);
             }
 
-            &.postgres {
-                color: #336791;
+            &.mongo::before {
+                background: linear-gradient(180deg, #13aa52, #0f8842);
+            }
+
+            &.postgres::before {
+                background: linear-gradient(180deg, #336791, #264d6d);
             }
         }
 
