@@ -87,6 +87,7 @@
                         </div>
                     </div>
                     <button @click="executeCommand" class="execute-btn">执行</button>
+                    <button @click="exportToExcel" class="execute-btn" style="background: #4fb40b;">导出</button>
                 </div>
                 <div class="table-container">
                     <table v-if="columns.length > 0">
@@ -125,7 +126,6 @@
             <div class="filter-dialog-content">
                 <div class="filter-dialog-header">
                     <h3>筛选条件</h3>
-                    <img src="../assets/close.svg" @click="showFilterDialog = false" class="close-icon">
                 </div>
                 <div class="filter-dialog-body">
                     <div v-for="column in columns" :key="column['字段名']" class="filter-item">
@@ -162,7 +162,6 @@
             <div class="connection-dialog-content">
                 <div class="connection-dialog-header">
                     <h3>新增连接</h3>
-                    <img src="../assets/close.svg" @click="showConnectionDialog = false" class="close-icon">
                 </div>
                 <div class="connection-dialog-body">
                     <div class="form-item">
@@ -201,7 +200,6 @@
             <div class="import-dialog-content">
                 <div class="import-dialog-header">
                     <h3>导入Excel数据</h3>
-                    <img src="../assets/close.svg" @click="showImportDialog = false" class="close-icon">
                 </div>
                 <div class="import-dialog-body">
                     <div class="form-item">
@@ -378,6 +376,65 @@ const importExcel = async () => {
     } catch (error) {
         ElMessage({
             message: '导入失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        })
+    } finally {
+        isLoading.value = false
+    }
+}
+
+const exportToExcel = async () => {
+    if (!tableData.value || tableData.value.length === 0) {
+        ElMessage({
+            message: '没有可导出的数据',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+
+    try {
+        isLoading.value = true
+        // 处理数据，确保所有值都是可序列化的
+        const processedData = tableData.value.map(row => {
+            const newRow = {}
+            columns.value.forEach(col => {
+                const value = row[col['字段名']]
+                // 处理特殊类型的值
+                newRow[col['字段名']] = value === null ? ''
+                    : typeof value === 'object' ? (
+                        // 如果是对象或数组，尝试保持 JSON 格式
+                        Array.isArray(value) || Object.keys(value).length > 0
+                            ? JSON.stringify(value, null, 2)  // 格式化 JSON 字符串
+                            : String(value)
+                    )
+                        : String(value)
+            })
+            return newRow
+        })
+        const result = await ipcRenderer.invoke('mysql:exportExcel', {
+            data: processedData,
+            columns: columns.value.map(col => col['字段名']),
+            tableName: currentTable.value || 'export'
+        })
+
+        if (result.success) {
+            ElMessage({
+                message: '导出成功：' + result.filePath,
+                type: 'success',
+                duration: 2000
+            })
+        } else {
+            ElMessage({
+                message: '导出失败：' + result.message,
+                type: 'error',
+                duration: 2000
+            })
+        }
+    } catch (error) {
+        ElMessage({
+            message: '导出失败：' + error.message,
             type: 'error',
             duration: 2000
         })

@@ -5,6 +5,8 @@ import icon from '../../resources/icon.png?asset'
 import Redis from 'ioredis'
 import mysql from 'mysql2/promise'
 import xlsx from 'xlsx'
+import ExcelJS from 'exceljs'
+import path from 'path'
 
 let redisClient = null
 let mysqlConnection = null
@@ -137,6 +139,50 @@ ipcMain.handle('mysql:importExcel', async (event, params) => {
   }
 })
 
+//导出mysql数据
+ipcMain.handle('mysql:exportExcel', async (event, { data, columns, tableName }) => {
+  try {
+      const workbook = new ExcelJS.Workbook()
+      const worksheet = workbook.addWorksheet(tableName)
+      
+      // 添加表头
+      worksheet.addRow(columns)
+      
+      // 添加数据
+      data.forEach(row => {
+          worksheet.addRow(columns.map(col => row[col]))
+      })
+
+      // 设置表头样式
+      worksheet.getRow(1).font = { bold: true }
+      
+      // 自动调整列宽
+      worksheet.columns.forEach(column => {
+          column.width = Math.max(
+              15,
+              ...worksheet.getColumn(column.number).values
+                  .map(v => String(v).length)
+          )
+      })
+
+      // 生成文件路径
+      const downloadPath = path.join(app.getPath('downloads'), `${tableName}_${Date.now()}.xlsx`)
+      
+      // 保存文件
+      await workbook.xlsx.writeFile(downloadPath)
+      
+      return {
+          success: true,
+          filePath: downloadPath
+      }
+  } catch (error) {
+      return {
+          success: false,
+          message: error.message
+      }
+  }
+})
+
 // MySQL 连接处理
 ipcMain.handle('mysql:connect', async (_, config) => {
   try {
@@ -258,9 +304,9 @@ ipcMain.handle('mysql:execute', async (_, query) => {
             // 转换为字符串
             value = String(value)
             // 如果是长字符串，截断显示
-            if (value.length > 50) {
-              value = value.substring(0, 47) + '...'
-            }
+            // if (value.length > 50) {
+            //   value = value.substring(0, 47) + '...'
+            // }
           }
           
           // 添加格式化后的值

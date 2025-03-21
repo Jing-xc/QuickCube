@@ -5,7 +5,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 const validChannels = [
   'redis:connect', 'redis:disconnect', 'redis:execute',
   'mysql:connect', 'mysql:disconnect', 'mysql:execute',
-  'mysql:importExcel', 'dialog:openFile'
+  'mysql:importExcel', 'dialog:openFile','mysql:exportExcel'
 ]
 
 // 统一的IPC调用处理
@@ -27,7 +27,8 @@ const api = {
     connect: config => ipcInvoke('mysql:connect', config),
     disconnect: () => ipcInvoke('mysql:disconnect'),
     execute: query => ipcInvoke('mysql:execute', query),
-    importExcel: params => ipcInvoke('mysql:importExcel', params)
+    importExcel: params => ipcInvoke('mysql:importExcel', params),
+    exportExcel: params => ipcInvoke('mysql:exportExcel', params)
   },
   dir:{
     openFile:()=>ipcInvoke('dialog:openFile')
