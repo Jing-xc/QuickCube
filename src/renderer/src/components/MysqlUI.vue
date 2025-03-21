@@ -1,11 +1,15 @@
 <template>
     <div class="mysql-ui-container">
         <div class="toolbars">
-            <div class="toolbar-item">
+            <div class="toolbar-item" @click="addConnection">
                 <img class="toolbar-item-icon" src="../assets/link.svg">
                 <text class="toolbar-item-text">链接</text>
             </div>
-            <div class="toolbar-item">
+            <div class="toolbar-item" @click="deleteConnection">
+                <img class="toolbar-item-icon" src="../assets/delete.svg">
+                <text class="toolbar-item-text">删除</text>
+            </div>
+            <div class="toolbar-item" @click="toggleCommandInput">
                 <img class="toolbar-item-icon" src="../assets/add-search.svg">
                 <text class="toolbar-item-text">查询</text>
             </div>
@@ -14,6 +18,7 @@
                 <text class="toolbar-item-text">筛选</text>
             </div>
         </div>
+
         <div class="ui-container" v-loading="isLoading" element-loading-background="rgba(122, 122, 122, 0.2)">
             <div class="sidebar">
                 <div class="connections">
@@ -33,7 +38,7 @@
                                 v-if="currentConnection?.id === conn.id" @click="closeConnection">
                         </div>
                         <!-- 展示数据库列表 -->
-                        <div class="databases" v-if="currentConnection">
+                        <div class="databases" v-if="currentConnection?.id === conn.id">
                             <div v-for="db in databases" :key="db" class="database-items">
                                 <div class="database-item">
                                     <div class="database-item-inner" @click="fetchTables(db)">
@@ -50,7 +55,7 @@
                                         @click="currentDatabase = ''">
                                 </div>
                                 <!-- 添加表的展示 -->
-                                <div class="tables" v-if="currentDatabase == db">
+                                <div class="tables" v-if="currentDatabase === db">
                                     <div v-for="table in tables" :key="table" class="table-items"
                                         @click="handleTableChange(table)">
                                         <div class="table-item">
@@ -65,6 +70,20 @@
                 </div>
             </div>
             <div class="content-center">
+                <!-- 添加命令输入区域 -->
+                <div class="command-input-container" v-if="showCommandInput">
+                    <div class="input-wrapper">
+                        <textarea v-model="commandInput" @keyup.ctrl.enter="executeCommand" @input="handleInput"
+                            placeholder="输入 SQL 命令... (Ctrl + Enter 执行)" class="command-input"></textarea>
+                        <div class="suggestions" v-if="showSuggestions">
+                            <div v-for="keyword in suggestions" :key="keyword" class="suggestion-item"
+                                @click="selectSuggestion(keyword)">
+                                {{ keyword }}
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="executeCommand" class="execute-btn">执行</button>
+                </div>
                 <div class="table-container">
                     <table v-if="columns.length > 0">
                         <thead>
@@ -134,11 +153,50 @@
                 </div>
             </div>
         </div>
+        <!-- 添加新的连接配置弹窗 -->
+        <div class="connection-dialog" v-if="showConnectionDialog">
+            <div class="connection-dialog-content">
+                <div class="connection-dialog-header">
+                    <h3>新增连接</h3>
+                    <img src="../assets/close.svg" @click="showConnectionDialog = false" class="close-icon">
+                </div>
+                <div class="connection-dialog-body">
+                    <div class="form-item">
+                        <label>连接名称</label>
+                        <input v-model="newConnection.name" placeholder="请输入连接名称">
+                    </div>
+                    <div class="form-item">
+                        <label>主机地址</label>
+                        <input v-model="newConnection.host" placeholder="请输入主机地址">
+                    </div>
+                    <div class="form-item">
+                        <label>端口</label>
+                        <input v-model="newConnection.port" type="number" placeholder="请输入端口号">
+                    </div>
+                    <div class="form-item">
+                        <label>用户名</label>
+                        <input v-model="newConnection.user" placeholder="请输入用户名">
+                    </div>
+                    <div class="form-item">
+                        <label>密码</label>
+                        <input v-model="newConnection.password" type="password" placeholder="请输入密码">
+                    </div>
+                    <div class="form-item">
+                        <label>数据库</label>
+                        <input v-model="newConnection.database" placeholder="请输入默认数据库">
+                    </div>
+                </div>
+                <div class="connection-dialog-footer">
+                    <button @click="saveConnection" class="save-btn">保存</button>
+                    <button @click="showConnectionDialog = false" class="cancel-btn">取消</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 const ipcRenderer = window.electron.ipcRenderer
 
@@ -156,6 +214,119 @@ const sqls = ref('');
 const showFilterDialog = ref(false)
 const selectedColumns = ref({})
 const currentConnection = ref(null)
+const showConnectionDialog = ref(false)
+const newConnection = ref({
+    name: '',
+    host: '',
+    port: 3306,
+    user: '',
+    password: '',
+    database: 'mysql'
+})
+
+const showCommandInput = ref(false)
+const commandInput = ref('')
+
+const suggestions = ref([])
+const showSuggestions = ref(false)
+const cursorPosition = ref(0)
+
+// MySQL 关键字列表
+const mysqlKeywords = [
+    'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'JOIN', 'LEFT JOIN',
+    'RIGHT JOIN', 'INNER JOIN', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT',
+    'CREATE', 'ALTER', 'DROP', 'TABLE', 'DATABASE', 'INDEX', 'VIEW', 'TRIGGER',
+    'PROCEDURE', 'FUNCTION', 'CONSTRAINT', 'PRIMARY KEY', 'FOREIGN KEY',
+    'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'AND', 'OR', 'NOT', 'IN',
+    'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL'
+]
+
+// 处理输入事件
+const handleInput = (event) => {
+    const textarea = event.target
+    cursorPosition.value = textarea.selectionStart
+    const text = commandInput.value
+    const lastWord = text.slice(0, cursorPosition.value).split(/\s/).pop()
+
+    if (lastWord && lastWord.length >= 1) {
+        suggestions.value = mysqlKeywords.filter(keyword =>
+            keyword.toLowerCase().startsWith(lastWord.toLowerCase())
+        )
+        showSuggestions.value = suggestions.value.length > 0
+    } else {
+        showSuggestions.value = false
+    }
+}
+
+// 选择提示词
+const selectSuggestion = (keyword) => {
+    const text = commandInput.value
+    const words = text.slice(0, cursorPosition.value).split(/\s/)
+    words.pop()
+    const beforeText = words.join(' ') + (words.length > 0 ? ' ' : '')
+    const afterText = text.slice(cursorPosition.value)
+
+    commandInput.value = beforeText + keyword + ' ' + afterText
+    showSuggestions.value = false
+}
+
+// 添加新的方法
+const toggleCommandInput = () => {
+    showCommandInput.value = !showCommandInput.value
+}
+
+const executeCommand = async () => {
+    if (!commandInput.value.trim()) return
+
+    try {
+        isLoading.value = true
+        sqls.value = commandInput.value
+        const result = await ipcRenderer.invoke('mysql:execute', commandInput.value)
+        if (result.success) {
+            // 使用第一条数据的key作为表头
+            if (result.data && result.data.length > 0) {
+                columns.value = Object.keys(result.data[0]).map(key => ({ '字段名': key }))
+            }
+            tableData.value = result.data
+            ElMessage({
+                message: '执行成功',
+                type: 'success',
+                duration: 2000
+            })
+        } else {
+            ElMessage({
+                message: '执行失败：' + result.message,
+                type: 'error',
+                duration: 2000
+            })
+        }
+    } catch (error) {
+        ElMessage({
+            message: '执行失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        })
+    } finally {
+        isLoading.value = false
+    }
+}
+
+// 初始化时从localStorage加载保存的连接
+onMounted(() => {
+    const savedConnections = localStorage.getItem('mysql-connections')
+    if (savedConnections) {
+        const parsedConnections = JSON.parse(savedConnections)
+        const hasDefaultConnection = parsedConnections.some(conn => conn.id === 'default')
+        if (hasDefaultConnection) {
+            connections.value = parsedConnections
+        } else {
+            connections.value = [
+                connections.value[0],
+                ...parsedConnections
+            ]
+        }
+    }
+})
 
 // 数据库连接列表,默认只有本地链接
 const connections = ref([
@@ -182,6 +353,12 @@ const selectConnection = async (connection) => {
         const result = await ipcRenderer.invoke('mysql:connect', { host, port, user, password, database })
         if (result.success) {
             await fetchDatabases()
+        } else {
+            ElMessage({
+                message: '连接失败：' + result.message,
+                type: 'error',
+                duration: 2000
+            });
         }
     } catch (error) {
         ElMessage({
@@ -226,6 +403,104 @@ const closeConnection = async () => {
     }
 }
 
+//新增链接
+const addConnection = async () => {
+    showConnectionDialog.value = true
+    newConnection.value = {
+        name: '',
+        host: '',
+        port: 3306,
+        user: '',
+        password: '',
+        database: 'mysql'
+    }
+}
+
+// 保存新连接
+const saveConnection = () => {
+    // 验证必填字段
+    if (!newConnection.value.name || !newConnection.value.host ||
+        !newConnection.value.user || !newConnection.value.password) {
+        ElMessage({
+            message: '请填写完整的连接信息',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+
+    // 生成唯一ID
+    const id = Date.now().toString()
+
+    // 添加新连接到连接列表
+    connections.value.push({
+        id,
+        ...newConnection.value
+    })
+
+    // 保存到localStorage
+    localStorage.setItem('mysql-connections', JSON.stringify(connections.value))
+
+    // 关闭弹窗
+    showConnectionDialog.value = false
+
+    ElMessage({
+        message: '添加连接成功',
+        type: 'success',
+        duration: 2000
+    })
+}
+
+// 删除连接
+const deleteConnection = async () => {
+    // 如果没有选中的连接，提示用户
+    if (!currentConnection.value) {
+        ElMessage({
+            message: '请先选择要删除的连接',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+
+    // 如果是默认连接，不允许删除
+    if (currentConnection.value.id === 'default') {
+        ElMessage({
+            message: '默认连接不能删除',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+
+    try {
+        // 如果连接是打开状态，先关闭连接
+        let connId = currentConnection.value.id
+        if (currentConnection.value) {
+            await closeConnection()
+        }
+
+        connections.value = connections.value.filter(conn => conn.id !== connId)
+
+        // 更新 localStorage
+        localStorage.setItem('mysql-connections', JSON.stringify(connections.value))
+
+        // 重置当前连接
+        currentConnection.value = null
+        ElMessage({
+            message: '删除连接成功',
+            type: 'success',
+            duration: 2000
+        })
+    } catch (error) {
+        ElMessage({
+            message: '删除连接失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        })
+    }
+}
+
 // 获取数据库列表
 const fetchDatabases = async () => {
     try {
@@ -233,6 +508,12 @@ const fetchDatabases = async () => {
         const result = await ipcRenderer.invoke('mysql:execute', 'SHOW DATABASES')
         if (result.success) {
             databases.value = result.data.map(row => row['数据库名'])
+        } else {
+            ElMessage({
+                message: '获取列表失败:' + result.message,
+                type: 'error',
+                duration: 2000
+            });
         }
     } catch (error) {
         ElMessage({
@@ -250,9 +531,17 @@ const fetchTables = async (db) => {
     currentDatabase.value = db
     try {
         isLoading.value = true // 开始加载
+        await ipcRenderer.invoke('mysql:execute', `USE ${db}`)
+
         const result = await ipcRenderer.invoke('mysql:execute', `SHOW TABLES FROM ${currentDatabase.value}`)
         if (result.success) {
             tables.value = result.data.map(row => Object.values(row)[0])
+        } else {
+            ElMessage({
+                message: '获取列表失败:' + result.message,
+                type: 'error',
+                duration: 2000
+            });
         }
     } catch (error) {
         ElMessage({
@@ -281,6 +570,12 @@ const fetchColumns = async () => {
         const result = await ipcRenderer.invoke('mysql:execute', `DESCRIBE ${currentDatabase.value}.${currentTable.value}`)
         if (result.success) {
             columns.value = result.data
+        } else {
+            ElMessage({
+                message: '获取表结构失败:' + result.message,
+                type: 'error',
+                duration: 2000
+            });
         }
     } catch (error) {
         ElMessage({
@@ -302,6 +597,12 @@ const fetchTableData = async (sql) => {
         const result = await ipcRenderer.invoke('mysql:execute', sqls.value)
         if (result.success) {
             tableData.value = result.data
+        } else {
+            ElMessage({
+                message: '获取表数据失败:' + result.message,
+                type: 'error',
+                duration: 2000
+            });
         }
     } catch (error) {
         ElMessage({
@@ -435,6 +736,8 @@ const applyFilter = async () => {
             }
         }
     }
+
+
 
     .ui-container {
         flex: 1;
@@ -638,11 +941,15 @@ const applyFilter = async () => {
                                         }
 
                                         .table-item-icon {
-                                            height: 20px;
-                                            width: 20px;
+                                            height: 16px;
+                                            width: 16px;
                                         }
 
                                         .table-item-text {
+                                            margin-left: 5px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
                                             font-size: 12px;
                                             color: #ddd;
 
@@ -680,6 +987,97 @@ const applyFilter = async () => {
             background-position: center;
             padding: 10px;
             box-sizing: border-box;
+
+            .command-input-container {
+                margin: 10px 0;
+                display: flex;
+                gap: 10px;
+
+
+                .execute-btn {
+                    padding: 0 15px;
+                    height: 30px; // 设置与input相同的高度
+                    border: none;
+                    border-radius: 4px;
+                    background: #1a73e8;
+                    color: white;
+                    cursor: pointer;
+                    font-size: 12px;
+
+                    &:hover {
+                        background: #1557b0;
+                    }
+                }
+
+
+                .input-wrapper {
+                    position: relative;
+                    flex: 1;
+
+                    .command-input {
+                        padding: 8px;
+                        height: 30px;
+                        width: 100%;
+                        border: none;
+                        border-radius: 4px;
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #56b0ec;
+                        font-size: 12px;
+                        outline: none;
+                        resize: vertical;
+
+                        &:focus {
+                            background: rgba(255, 255, 255, 0.15);
+                        }
+                    }
+
+
+
+                    .suggestions {
+                        position: absolute;
+                        top: 100%;
+                        left: 0;
+                        right: 0;
+                        max-height: 200px;
+                        overflow-y: auto;
+                        background: #2c3033;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                        z-index: 1000;
+
+                        .suggestion-item {
+                            padding: 8px 12px;
+                            color: #ddd;
+                            font-size: 12px;
+                            cursor: pointer;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.1);
+                                color: #56b0ec;
+                            }
+                        }
+
+                        &::-webkit-scrollbar {
+                            width: 3px;
+                            height: 3px;
+                        }
+
+                        &::-webkit-scrollbar-track {
+                            background: rgba(0, 0, 0, 0.1);
+                            border-radius: 3px;
+                        }
+
+                        &::-webkit-scrollbar-thumb {
+                            background: rgba(255, 255, 255, 0.2);
+                            border-radius: 3px;
+
+                            &:hover {
+                                background: rgba(255, 255, 255, 0.3);
+                            }
+                        }
+                    }
+                }
+            }
 
             .sqls {
                 height: 25px;
@@ -781,7 +1179,7 @@ const applyFilter = async () => {
                     }
 
                     th {
-                        background: rgba(0, 0, 0, 0.2);
+                        background: #000;
                         position: sticky;
                         top: 0;
                         z-index: 1;
@@ -802,6 +1200,8 @@ const applyFilter = async () => {
                             background: rgba(255, 255, 255, 0.05);
                         }
                     }
+
+                    tbody {}
 
                     tbody tr:hover {
                         background: rgba(255, 255, 255, 0.05);
@@ -960,6 +1360,117 @@ const applyFilter = async () => {
                     font-size: 12px;
 
                     &.apply-btn {
+                        background: #1a73e8;
+                        color: white;
+
+                        &:hover {
+                            background: #1557b0;
+                        }
+                    }
+
+                    &.cancel-btn {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #ddd;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .connection-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+
+        .connection-dialog-content {
+            background: #2c3033;
+            border-radius: 8px;
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+
+            .connection-dialog-header {
+                padding: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+                h3 {
+                    margin: 0;
+                    color: #ddd;
+                    font-size: 16px;
+                }
+
+                .close-icon {
+                    width: 16px;
+                    height: 16px;
+                    cursor: pointer;
+                    opacity: 0.7;
+
+                    &:hover {
+                        opacity: 1;
+                    }
+                }
+            }
+
+            .connection-dialog-body {
+                padding: 15px;
+
+                .form-item {
+                    margin-bottom: 15px;
+
+                    label {
+                        display: block;
+                        color: #ddd;
+                        margin-bottom: 5px;
+                        font-size: 12px;
+                    }
+
+                    input {
+                        width: 100%;
+                        height: 30px;
+                        border: none;
+                        border-radius: 4px;
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #fff;
+                        padding: 0 10px;
+                        font-size: 12px;
+                        outline: none;
+
+                        &:focus {
+                            background: rgba(255, 255, 255, 0.15);
+                        }
+                    }
+                }
+            }
+
+            .connection-dialog-footer {
+                padding: 10px 15px;
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+                button {
+                    padding: 6px 15px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+
+                    &.save-btn {
                         background: #1a73e8;
                         color: white;
 
