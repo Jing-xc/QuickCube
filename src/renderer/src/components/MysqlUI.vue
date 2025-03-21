@@ -17,6 +17,10 @@
                 <img class="toolbar-item-icon" src="../assets/search.svg">
                 <text class="toolbar-item-text">筛选</text>
             </div>
+            <div class="toolbar-item" @click="openImportDialog">
+                <img class="toolbar-item-icon" src="../assets/import.svg">
+                <text class="toolbar-item-text">导入</text>
+            </div>
         </div>
 
         <div class="ui-container" v-loading="isLoading" element-loading-background="rgba(122, 122, 122, 0.2)">
@@ -192,6 +196,38 @@
                 </div>
             </div>
         </div>
+        <!-- 导入excel -->
+        <div class="import-dialog" v-if="showImportDialog">
+            <div class="import-dialog-content">
+                <div class="import-dialog-header">
+                    <h3>导入Excel数据</h3>
+                    <img src="../assets/close.svg" @click="showImportDialog = false" class="close-icon">
+                </div>
+                <div class="import-dialog-body">
+                    <div class="form-item">
+                        <label>选择目标数据库</label>
+                        <select v-model="importConfig.database">
+                            <option v-for="db in databases" :key="db" :value="db">{{ db }}</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>表名</label>
+                        <input v-model="importConfig.tableName" placeholder="请输入要创建的表名">
+                    </div>
+                    <div class="form-item">
+                        <label>选择Excel文件</label>
+                        <div class="file-input">
+                            <button @click="selectExcelFile">选择文件</button>
+                            <span>{{ importConfig.fileName || '未选择文件' }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="import-dialog-footer">
+                    <button @click="importExcel" class="import-btn" :disabled="!importConfig.filePath">导入</button>
+                    <button @click="showImportDialog = false" class="cancel-btn">取消</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -230,6 +266,13 @@ const commandInput = ref('')
 const suggestions = ref([])
 const showSuggestions = ref(false)
 const cursorPosition = ref(0)
+const showImportDialog = ref(false)
+const importConfig = ref({
+    database: '',
+    tableName: '',
+    filePath: '',
+    fileName: ''
+})
 
 // MySQL 关键字列表
 const mysqlKeywords = [
@@ -240,6 +283,108 @@ const mysqlKeywords = [
     'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'AND', 'OR', 'NOT', 'IN',
     'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL'
 ]
+
+// 打开导入对话框
+const openImportDialog = () => {
+    if (!currentConnection.value) {
+        ElMessage({
+            message: '请先选择一个数据库连接',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+    showImportDialog.value = true
+    importConfig.value = {
+        database: currentDatabase.value,
+        tableName: '',
+        filePath: '',
+        fileName: ''
+    }
+}
+
+// 选择Excel文件
+const selectExcelFile = async () => {
+    try {
+        const result = await ipcRenderer.invoke('dialog:openFile')
+        if (!result.success) {
+            ElMessage({
+                message: '选择文件失败：' + result.message,
+                type: 'error',
+                duration: 2000
+            })
+            return
+        }
+
+        if (result.canceled) {
+            return
+        }
+
+        importConfig.value.filePath = result.filePaths[0]
+        importConfig.value.fileName = result.filePaths[0].split('\\').pop()
+    } catch (error) {
+        ElMessage({
+            message: '选择文件失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        })
+    }
+}
+
+// 导入Excel
+const importExcel = async () => {
+    if (!importConfig.value.database || !importConfig.value.tableName || !importConfig.value.filePath) {
+        ElMessage({
+            message: '请填写完整信息',
+            type: 'warning',
+            duration: 2000
+        })
+        return
+    }
+
+    try {
+        isLoading.value = true
+        // 创建一个新的对象，只包含必要的连接信息
+        const connectionConfig = {
+            host: currentConnection.value.host,
+            port: currentConnection.value.port,
+            user: currentConnection.value.user,
+            password: currentConnection.value.password
+        }
+
+        const result = await ipcRenderer.invoke('mysql:importExcel', {
+            filePath: importConfig.value.filePath,
+            database: importConfig.value.database,
+            tableName: importConfig.value.tableName,
+            connection: connectionConfig
+        })
+
+        if (result.success) {
+            ElMessage({
+                message: '导入成功',
+                type: 'success',
+                duration: 2000
+            })
+            showImportDialog.value = false
+            // 刷新表列表
+            await fetchTables(importConfig.value.database)
+        } else {
+            ElMessage({
+                message: '导入失败：' + result.message,
+                type: 'error',
+                duration: 2000
+            })
+        }
+    } catch (error) {
+        ElMessage({
+            message: '导入失败：' + error.message,
+            type: 'error',
+            duration: 2000
+        })
+    } finally {
+        isLoading.value = false
+    }
+}
 
 // 处理输入事件
 const handleInput = (event) => {
@@ -1476,6 +1621,157 @@ const applyFilter = async () => {
 
                         &:hover {
                             background: #1557b0;
+                        }
+                    }
+
+                    &.cancel-btn {
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #ddd;
+
+                        &:hover {
+                            background: rgba(255, 255, 255, 0.2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    .import-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+
+        .import-dialog-content {
+            background: #2c3033;
+            border-radius: 8px;
+            width: 400px;
+            display: flex;
+            flex-direction: column;
+
+            .import-dialog-header {
+                padding: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+
+                h3 {
+                    margin: 0;
+                    color: #ddd;
+                    font-size: 16px;
+                }
+
+                .close-icon {
+                    width: 16px;
+                    height: 16px;
+                    cursor: pointer;
+                    opacity: 0.7;
+
+                    &:hover {
+                        opacity: 1;
+                    }
+                }
+            }
+
+            .import-dialog-body {
+                padding: 15px;
+
+                .form-item {
+                    margin-bottom: 15px;
+
+                    label {
+                        display: block;
+                        color: #ddd;
+                        margin-bottom: 5px;
+                        font-size: 12px;
+                    }
+
+                    select,
+                    input {
+                        width: 100%;
+                        height: 30px;
+                        border: none;
+                        border-radius: 4px;
+                        background: rgba(255, 255, 255, 0.1);
+                        color: #fff;
+                        padding: 0 10px;
+                        font-size: 12px;
+                        outline: none;
+
+                        &:focus {
+                            background: rgba(255, 255, 255, 0.15);
+                        }
+
+                        option {
+                            background: #2c3033;
+                            color: #ddd;
+                        }
+                    }
+
+                    .file-input {
+                        display: flex;
+                        gap: 10px;
+                        align-items: center;
+
+                        button {
+                            padding: 6px 15px;
+                            border: none;
+                            border-radius: 4px;
+                            background: #1a73e8;
+                            color: white;
+                            cursor: pointer;
+                            font-size: 12px;
+
+                            &:hover {
+                                background: #1557b0;
+                            }
+                        }
+
+                        span {
+                            color: #ddd;
+                            font-size: 12px;
+                            flex: 1;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+                    }
+                }
+            }
+
+            .import-dialog-footer {
+                padding: 10px 15px;
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+                button {
+                    padding: 6px 15px;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+
+                    &.import-btn {
+                        background: #1a73e8;
+                        color: white;
+
+                        &:hover:not(:disabled) {
+                            background: #1557b0;
+                        }
+
+                        &:disabled {
+                            opacity: 0.5;
+                            cursor: not-allowed;
                         }
                     }
 

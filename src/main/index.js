@@ -1,47 +1,46 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import Redis from 'ioredis'
 import mysql from 'mysql2/promise'
+import xlsx from 'xlsx'
 
 let redisClient = null
 let mysqlConnection = null
 
-// Redis 连接处理
+// 统一错误处理函数
+const handleError = (error) => ({ success: false, message: error.message })
+const handleSuccess = (data) => ({ success: true, ...data })
+
+// Redis 操作处理
 ipcMain.handle('redis:connect', async (_, config) => {
   try {
-    if (redisClient) {
-      await redisClient.quit()
-    }
+    if (redisClient) await redisClient.quit()
 
     redisClient = new Redis({
       host: config.host || 'localhost',
       port: config.port || 6379,
       password: config.password,
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000)
-        return delay
-      }
+      retryStrategy: (times) => Math.min(times * 50, 2000)
     })
 
     await redisClient.ping()
-    return { success: true }
+    return handleSuccess({})
   } catch (error) {
-    return { success: false, message: error.message }
+    return handleError(error)
   }
 })
 
-// Redis 断开连接
 ipcMain.handle('redis:disconnect', async () => {
   try {
     if (redisClient) {
       await redisClient.quit()
       redisClient = null
     }
-    return { success: true }
+    return handleSuccess({})
   } catch (error) {
-    return { success: false, message: error.message }
+    return handleError(error)
   }
 })
 
@@ -58,6 +57,81 @@ ipcMain.handle('redis:execute', async (_, command) => {
 
     const result = await redisClient[cmd](...params)
     return { success: true, result }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+ipcMain.handle('dialog:openFile',  async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Excel Files', extensions: ['xlsx', 'xls'] }
+      ]
+    })
+    return {
+      success: true,
+      canceled: result.canceled,
+      filePaths: result.filePaths
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+})
+
+// 添加 Excel 导入处理程序
+ipcMain.handle('mysql:importExcel', async (event, params) => {
+  try {
+    const { filePath, database, tableName, connection } = params
+    
+    // 读取 Excel 文件
+    const workbook = xlsx.readFile(filePath)
+    const sheetName = workbook.SheetNames[0]
+    const sheet = workbook.Sheets[sheetName]
+    const data = xlsx.utils.sheet_to_json(sheet)
+    
+    if (data.length === 0) {
+      return { success: false, message: 'Excel 文件为空' }
+    }
+
+    // 创建数据库连接
+    const conn = await mysql.createConnection({
+      host: connection.host,
+      port: connection.port,
+      user: connection.user,
+      password: connection.password,
+      database: database
+    })
+
+    
+
+    // 获取列名
+    const columns = Object.keys(data[0])
+    
+    // 创建表的 SQL
+    const createTableSQL = `CREATE TABLE IF NOT EXISTS ${tableName} (
+      ${columns.map(col => `\`${col}\` VARCHAR(255)`).join(', ')}
+    )`
+    
+    // 插入数据的 SQL
+    const insertSQL = `INSERT INTO ${tableName} (${columns.map(col => `\`${col}\``).join(', ')}) 
+      VALUES (${columns.map(() => '?').join(', ')})`
+
+    // 执行创建表
+    await conn.execute(createTableSQL)
+
+    // 批量插入数据
+    for (const row of data) {
+      const values = columns.map(col => row[col])
+      await conn.execute(insertSQL, values)
+    }
+
+    await conn.end()
+    return { success: true }
   } catch (error) {
     return { success: false, message: error.message }
   }
@@ -227,7 +301,6 @@ ipcMain.handle('mysql:execute', async (_, query) => {
 })
 
 function createWindow() {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 670,
@@ -242,17 +315,12 @@ function createWindow() {
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
+  mainWindow.on('ready-to-show', () => mainWindow.show())
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -292,7 +360,7 @@ app.on('window-all-closed', () => {
   }
 })
 
-// 确保在应用退出时关闭所有连接
+// 关闭链接
 app.on('before-quit', async () => {
   if (redisClient) {
     await redisClient.quit()
@@ -303,6 +371,3 @@ app.on('before-quit', async () => {
     mysqlConnection = null
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

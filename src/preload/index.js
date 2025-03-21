@@ -1,41 +1,45 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-// Custom APIs for renderer
+// 定义有效的IPC通道
+const validChannels = [
+  'redis:connect', 'redis:disconnect', 'redis:execute',
+  'mysql:connect', 'mysql:disconnect', 'mysql:execute',
+  'mysql:importExcel', 'dialog:openFile'
+]
+
+// 统一的IPC调用处理
+const ipcInvoke = (channel, data) => {
+  if (validChannels.includes(channel)) {
+    return ipcRenderer.invoke(channel, data)
+  }
+  return Promise.reject(new Error('无效的通道'))
+}
+
+// 定义API
 const api = {
-  // Redis 相关操作
   redis: {
-    connect: (config) => ipcRenderer.invoke('redis:connect', config),
-    disconnect: () => ipcRenderer.invoke('redis:disconnect'),
-    execute: (command) => ipcRenderer.invoke('redis:execute', command)
+    connect: config => ipcInvoke('redis:connect', config),
+    disconnect: () => ipcInvoke('redis:disconnect'),
+    execute: command => ipcInvoke('redis:execute', command)
   },
-  // MySQL 相关操作
   mysql: {
-    connect: (config) => ipcRenderer.invoke('mysql:connect', config),
-    disconnect: () => ipcRenderer.invoke('mysql:disconnect'),
-    execute: (query) => ipcRenderer.invoke('mysql:execute', query)
+    connect: config => ipcInvoke('mysql:connect', config),
+    disconnect: () => ipcInvoke('mysql:disconnect'),
+    execute: query => ipcInvoke('mysql:execute', query),
+    importExcel: params => ipcInvoke('mysql:importExcel', params)
+  },
+  dir:{
+    openFile:()=>ipcInvoke('dialog:openFile')
   }
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
+// 暴露API到渲染进程
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', {
       ...electronAPI,
-      ipcRenderer: {
-        invoke: (channel, data) => {
-          const validChannels = [
-            'redis:connect', 'redis:disconnect', 'redis:execute',
-            'mysql:connect', 'mysql:disconnect', 'mysql:execute'
-          ]
-          if (validChannels.includes(channel)) {
-            return ipcRenderer.invoke(channel, data)
-          }
-          return Promise.reject(new Error('Invalid channel'))
-        }
-      }
+      ipcRenderer: { invoke: ipcInvoke }
     })
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
@@ -44,18 +48,7 @@ if (process.contextIsolated) {
 } else {
   window.electron = {
     ...electronAPI,
-    ipcRenderer: {
-      invoke: (channel, data) => {
-        const validChannels = [
-          'redis:connect', 'redis:disconnect', 'redis:execute',
-          'mysql:connect', 'mysql:disconnect', 'mysql:execute'
-        ]
-        if (validChannels.includes(channel)) {
-          return ipcRenderer.invoke(channel, data)
-        }
-        return Promise.reject(new Error('Invalid channel'))
-      }
-    }
+    ipcRenderer: { invoke: ipcInvoke }
   }
   window.api = api
 }
