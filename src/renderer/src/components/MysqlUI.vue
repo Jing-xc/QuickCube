@@ -93,12 +93,20 @@
                     <table v-if="columns.length > 0">
                         <thead>
                             <tr>
-                                <th v-for="column in columns" :key="column['字段名']">{{ column['字段名'] }}</th>
+                                <th v-for="column in columns" :key="column['字段名']"
+                                    @click="copyToClipboard(column['字段名'])" class="copyable-header"
+                                    :title="'点击复制: ' + column['字段名']">
+                                    {{ column['字段名'] }}
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="(row, index) in tableData" :key="index">
-                                <td v-for="column in columns" :key="column.Field">{{ row[column['字段名']] }}</td>
+                                <td v-for="column in columns" :key="column.Field"
+                                    @click="copyToClipboard(row[column['字段名']])" class="copyable-cell"
+                                    :title="'点击复制: ' + row[column['字段名']]">
+                                    {{ row[column['字段名']] }}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -106,7 +114,7 @@
                         暂无数据
                     </div>
                 </div>
-                <div class="sqls">{{ sqls }}</div>
+                <div class="sqls" @click="copyToClipboard(sqls)" :title="'点击复制: ' + sqls">{{ sqls }}</div>
                 <div class=" pagination-container">
                     <div class="pagination">
                         <button @click="prevPage" :disabled="currentPage === 1" class="page-btn">
@@ -281,6 +289,24 @@ const mysqlKeywords = [
     'DISTINCT', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN', 'AND', 'OR', 'NOT', 'IN',
     'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL'
 ]
+
+// 复制到剪贴板的函数
+const copyToClipboard = async (text) => {
+    try {
+        await navigator.clipboard.writeText(text || '');
+        ElMessage({
+            message: '复制成功',
+            type: 'success',
+            duration: 1000
+        });
+    } catch (err) {
+        ElMessage({
+            message: '复制失败',
+            type: 'error',
+            duration: 2000
+        });
+    }
+}
 
 // 打开导入对话框
 const openImportDialog = () => {
@@ -1294,6 +1320,7 @@ const applyFilter = async () => {
                 display: flex;
                 justify-content: flex-start;
                 align-items: center;
+                cursor: pointer;
 
                 &:hover {
                     color: #139dec;
@@ -1388,6 +1415,7 @@ const applyFilter = async () => {
                         font-size: 12px;
                         font-weight: bold;
                         color: #d5e2c0;
+                        cursor: pointer;
 
                         &:hover {
                             background: rgba(0, 0, 0, 0.3);
@@ -1397,6 +1425,7 @@ const applyFilter = async () => {
                     td {
                         font-size: 12px;
                         color: #ddd;
+                        cursor: pointer;
 
                         &:hover {
                             background: rgba(255, 255, 255, 0.05);
