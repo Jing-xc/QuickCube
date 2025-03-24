@@ -3,6 +3,7 @@
         <div class="header">
             <div class="tabs" :class="{ active: activeTab === 'terminal' }" @click="switchTab('terminal')">命令行</div>
             <div class="tabs" :class="{ active: activeTab === 'ui' }" @click="switchTab('ui')">面板UI</div>
+            <div class="tabs" :class="{ active: activeTab === 'ui-2' }" @click="switchTab('ui-2')">面板UI-2</div>
         </div>
         <div class="main-content">
             <div class="client" ref="clientDiv" v-show="activeTab === 'terminal'">
@@ -49,7 +50,10 @@
                     </div>
                 </div>
             </div>
-            <div class="redis-ui" v-show="activeTab === 'ui'">
+            <div class="redis-ui-2" v-show="activeTab === 'ui-2'">
+                <RedisUI2 />
+            </div>
+            <!-- <div class="redis-ui" v-show="activeTab === 'ui'">
                 <div class="ui-container">
                     <div class="sidebar">
                         <div class="database-list">
@@ -91,9 +95,7 @@
                                 </div>
                             </div>
                             <div class="key-content">
-                                <!-- 根据不同的键类型显示不同的内容编辑器 -->
-                                <RedisValueEditor :type="currentKeyType" :value="keyContent"
-                                    @update="updateKeyContent" />
+                                <RedisUI :type="currentKeyType" :value="keyContent" @update="updateKeyContent" />
                             </div>
                         </div>
                         <div class="welcome-screen" v-else>
@@ -104,7 +106,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> -->
             <ToolsSidebar />
         </div>
     </div>
@@ -116,7 +118,8 @@ import { ref, onMounted, nextTick, onUnmounted, watch, computed } from 'vue'
 // 侧边工具栏组件
 import ToolsSidebar from '../components/ToolsSidebar.vue'
 // Redis值编辑器组件
-import RedisValueEditor from '../components/RedisValueEditor.vue'
+import RedisUI from '../components/RedisUI.vue'
+import RedisUI2 from '../components/RedisUI2.vue'
 // Redis 常用命令列表
 import { redisCommands } from '../constants/redisCommands'
 // 在 script setup 部分添加
@@ -989,6 +992,13 @@ onUnmounted(() => {
         }
     }
 
+    .redis-ui-2 {
+        flex: 1;
+        display: flex;
+        min-width: 0;
+        overflow: hidden;
+    }
+
     .redis-ui {
         flex: 1;
         margin: 12px;
@@ -1192,45 +1202,20 @@ onUnmounted(() => {
                     flex-direction: column;
 
                     .info-header {
-                        padding: 16px;
-                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
+
 
                         .key-details {
-                            display: flex;
-                            align-items: center;
-                            gap: 10px;
 
-                            h3 {
-                                margin: 0;
-                                color: #e4e4e4;
-                                font-size: 15px;
-                            }
+                            h3 {}
 
-                            .type-badge {
-                                padding: 3px 10px;
-                                border-radius: 16px;
-                                font-size: 11px;
-                                background: rgba(76, 175, 80, 0.1);
-                                color: #4CAF50;
-                                font-weight: 500;
-                            }
+                            .type-badge {}
                         }
 
                         .actions {
-                            display: flex;
-                            gap: 10px;
+
 
                             button {
-                                padding: 6px 14px;
-                                border-radius: 16px;
-                                border: none;
-                                cursor: pointer;
-                                font-size: 12px;
-                                font-weight: 500;
-                                transition: all 0.3s ease;
+
 
                                 &:not(.danger) {
                                     background: rgba(255, 255, 255, 0.1);
